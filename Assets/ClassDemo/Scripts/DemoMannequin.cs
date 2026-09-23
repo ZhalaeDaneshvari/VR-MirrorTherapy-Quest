@@ -11,15 +11,27 @@ namespace ClassEmbodimentDemo
         readonly Vector3[] elbows = new Vector3[2], wrists = new Vector3[2];
         const float UpperLength = .30f, LowerLength = .28f;
 
-        public DemoMannequin(string name, Vector3 position, Material body, Material skin, Material chair)
+        public DemoMannequin(string name, Vector3 position, Material body, Material skin, Material chair, Material eyeWhite)
         {
             Root = new GameObject(name).transform;
             Root.position = position;
-            Part("Torso", PrimitiveType.Capsule, new Vector3(0,1.13f,0), new Vector3(.43f,.29f,.25f), body);
-            Part("Shoulders", PrimitiveType.Sphere, new Vector3(0,1.36f,0), new Vector3(.55f,.17f,.24f), body);
+            Part("Torso", PrimitiveType.Capsule, new Vector3(0,1.13f,0), new Vector3(.40f,.29f,.24f), body);
+            Part("Shoulders", PrimitiveType.Sphere, new Vector3(0,1.36f,0), new Vector3(.49f,.15f,.23f), body);
             Part("Hips", PrimitiveType.Sphere, new Vector3(0,.83f,0), new Vector3(.39f,.22f,.27f), body);
             Part("Neck", PrimitiveType.Cylinder, new Vector3(0,1.48f,0), new Vector3(.09f,.055f,.09f), skin);
-            Head = Part("Head", PrimitiveType.Sphere, new Vector3(0,1.66f,0), new Vector3(.19f,.24f,.20f), skin);
+            Head = Part("Head", PrimitiveType.Sphere, new Vector3(0,1.66f,0), new Vector3(.17f,.235f,.185f), skin);
+            // Facial landmarks make forward direction unambiguous. All face parts parent to Head
+            // so they disappear together in first-person view. Still a stylized procedural avatar.
+            Face("Hair",new Vector3(0,.075f,-.012f),new Vector3(.18f,.11f,.18f),chair);
+            Face("Nose",new Vector3(0,-.005f,.094f),new Vector3(.028f,.043f,.035f),skin);
+            Face("Mouth",new Vector3(0,-.052f,.080f),new Vector3(.044f,.006f,.012f),chair);
+            for(int side=-1;side<=1;side+=2)
+            {
+                Face("Ear",new Vector3(side*.086f,-.005f,0),new Vector3(.027f,.050f,.030f),skin);
+                Face("Eye white",new Vector3(side*.035f,.022f,.080f),new Vector3(.033f,.020f,.022f),eyeWhite);
+                Face("Iris",new Vector3(side*.035f,.022f,.090f),new Vector3(.013f,.015f,.008f),chair);
+                Face("Brow",new Vector3(side*.035f,.043f,.079f),new Vector3(.038f,.008f,.012f),chair);
+            }
             Part("Seat", PrimitiveType.Cube, new Vector3(0,.69f,0), new Vector3(.52f,.07f,.48f), chair);
             Part("Chair back", PrimitiveType.Cube, new Vector3(0,.89f,-.23f), new Vector3(.50f,.30f,.06f), chair);
             for (int i=0;i<2;i++)
@@ -34,7 +46,7 @@ namespace ClassEmbodimentDemo
                 lower[i]=Part(i==0?"Left forearm":"Right forearm",PrimitiveType.Capsule,Vector3.zero,Vector3.one,skin);
                 palms[i]=new GameObject(i==0?"Left hand":"Right hand").transform;
                 palms[i].SetParent(Root,false);
-                var palm=Part("Palm",PrimitiveType.Cube,Vector3.zero,new Vector3(.083f,.033f,.095f),skin);
+                var palm=Part("Palm",PrimitiveType.Sphere,Vector3.zero,new Vector3(.088f,.038f,.108f),skin);
                 palm.SetParent(palms[i],false);
                 for(int f=0;f<4;f++)
                 {
@@ -47,6 +59,16 @@ namespace ClassEmbodimentDemo
                 thumb.SetParent(palms[i],false);
                 Segment(thumb,new Vector3(-side*.035f,0,0),new Vector3(-side*.078f,0,.035f),.021f);
             }
+        }
+
+        void Face(string name, Vector3 localPosition, Vector3 scale, Material material)
+        {
+            var part=Part(name,PrimitiveType.Sphere,Vector3.zero,Vector3.one,material);
+            // Head itself has nonuniform scale; divide to preserve physical dimensions.
+            part.SetParent(Head,false);
+            var h=Head.localScale;
+            part.localPosition=new Vector3(localPosition.x/h.x,localPosition.y/h.y,localPosition.z/h.z);
+            part.localScale=new Vector3(scale.x/h.x,scale.y/h.y,scale.z/h.z);
         }
 
         Transform Part(string name, PrimitiveType type, Vector3 position, Vector3 scale, Material material)

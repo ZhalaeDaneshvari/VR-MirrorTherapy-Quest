@@ -39,7 +39,20 @@ public static class ClassDemoSetup
             var expectedR=condition==MovementCondition.LeftToRight?DemoMovementMapping.Reflect(l.position):r.position;
             Require(Vector3.Distance(dl.position,expectedL)<.00001f && Vector3.Distance(dr.position,expectedR)<.00001f,"Condition routing failed.");
         }
-        Debug.Log("Class demo reflection checks PASS: involution, S R S orientation, and three condition routes. Hardware and anatomical validation not performed.");
+        foreach(var condition in new[]{MovementCondition.LeftToRight,MovementCondition.RightToLeft})
+        {
+            DemoMovementMapping.Map(condition,l,r,out var dl,out var dr,true);
+            bool leftSource=condition==MovementCondition.LeftToRight;
+            Pose parked=leftSource?dl:dr, active=leftSource?dr:dl, input=leftSource?l:r;
+            var expectedRest=DemoMovementMapping.RestingPose(!leftSource);
+            Require(Vector3.Distance(parked.position,expectedRest.position)<.00001f && Quaternion.Angle(parked.rotation,expectedRest.rotation)<.02f,"Unused arm must stay at neutral rest.");
+            Require(Vector3.Distance(active.position,DemoMovementMapping.Reflect(input.position))<.00001f && Quaternion.Angle(active.rotation,DemoMovementMapping.Reflect(input.rotation))<.02f,"Opposite-only pose mapping failed.");
+            var movedL=new Pose(l.position+Vector3.up*.1f,l.rotation);
+            var movedR=new Pose(r.position+Vector3.up*.1f,r.rotation);
+            DemoMovementMapping.Map(condition,movedL,movedR,out var nextL,out var nextR,true);
+            Require(Vector3.Distance(parked.position,(leftSource?nextL:nextR).position)<.00001f,"Unused arm must not follow source changes.");
+        }
+        Debug.Log("Class demo reflection checks PASS: involution, S R S orientation, three condition routes, and opposite-only parked-arm invariance. Hardware and anatomical validation not performed.");
     }
     static void Require(bool value,string message){if(!value)throw new Exception(message);}
 }

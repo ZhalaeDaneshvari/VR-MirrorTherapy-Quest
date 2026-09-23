@@ -16,15 +16,23 @@ namespace ClassEmbodimentDemo
         public static Quaternion Reflect(Quaternion rotation) =>
             Quaternion.LookRotation(Reflect(rotation * Vector3.forward), Reflect(rotation * Vector3.up));
 
-        public static void Map(MovementCondition condition, Pose left, Pose right, out Pose displayedLeft, out Pose displayedRight)
+        public static Pose RestingPose(bool right) => new Pose(new Vector3(right ? .35f : -.35f, .98f, .29f), Quaternion.identity);
+
+        public static void Map(MovementCondition condition, Pose left, Pose right, out Pose displayedLeft, out Pose displayedRight, bool oppositeOnly = false)
         {
             displayedLeft = left;
             displayedRight = right;
-            // The source-side virtual arm retains congruent movement: one source drives both.
+            // Opposite-only parks the unused virtual arm in a fixed neutral pose; it does not copy input.
             if (condition == MovementCondition.LeftToRight)
+                {
                 displayedRight = new Pose(Reflect(left.position), Reflect(left.rotation));
+                if (oppositeOnly) displayedLeft = RestingPose(false);
+            }
             if (condition == MovementCondition.RightToLeft)
+                {
                 displayedLeft = new Pose(Reflect(right.position), Reflect(right.rotation));
+                if (oppositeOnly) displayedRight = RestingPose(true);
+            }
         }
     }
 }

@@ -32,3 +32,13 @@ These are renders of the procedural Unity avatar, not headset captures and not c
 ![First-person desktop avatar render](Docs/class-demo-first-person.png)
 
 ![Observer desktop avatar render](Docs/class-demo-avatar.png)
+
+## Opposite-only and front-view update — 2026-09-23
+
+- Added explicit opposite-only mapping in both directions. Tests verify reflected position/orientation and that the unused virtual arm remains at its fixed neutral pose when source poses change. The original both-arm behavior remains selectable; congruent mapping is unchanged.
+- Unity batch compilation and reflection checks passed with exit 0 in `/private/tmp/quest-class-demo-v2-math.log`.
+- The temporary runtime harness again exercised three movement selections and three touch routes; routing assertions and touch-stop check completed. Observer and first-person renders were inspected and refreshed above.
+- The same Unity Editor Search indexing exception occurred; the overall smoke process exited 1. See `/private/tmp/quest-class-demo-v2-render.log`. No demo-script exception was observed.
+- Both comparison cameras now face the avatars. Anatomical left/right is labeled explicitly. Avatar facial landmarks and rounded palms improve presentation, but the geometry remains stylized, not photorealistic.
+- First-person mode uses a full-width monoscopic view, right-mouse look, and recenter. Mouse-look interaction and every final UI click have not been manually exercised; rendered camera placement and compilation were checked.
+- Quest tracking remains unimplemented in this demo; all source movement is simulated. No baseline packages, settings, or QuestBootstrap assets were changed.
