@@ -1,6 +1,6 @@
 # Class embodiment demo branch
 
-This branch adds a **desktop simulation** for class. Open **Quest Prototype → Class Demo → Create or Open Demo Scene**, then press **Play** and select **Game**. The demo now defaults to **opposite-arm-only** mapping, front-facing avatars, and a full-width first-person mode with right-mouse look. Read [CLASS_DEMO.md](CLASS_DEMO.md) for controls and limitations. It does not complete or validate later Quest research milestones. The original Milestone 1 documentation follows.
+This branch adds a **desktop simulation** for class. Open **Quest Prototype → Class Demo → Create or Open Demo Scene**, then press **Play** and select **Game**. The demo now defaults to **opposite-arm-only** mapping, front-facing avatars, and a split-screen first-person mode with right-mouse look. Read [CLASS_DEMO.md](CLASS_DEMO.md) for controls and limitations. It does not complete or validate later Quest research milestones. The original Milestone 1 documentation follows.
 
 # Quest head-tracking bootstrap — Milestone 1
 

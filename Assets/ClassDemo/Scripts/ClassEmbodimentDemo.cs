@@ -94,9 +94,9 @@ namespace ClassEmbodimentDemo
             sourceTouch.gameObject.layer=8; displayedTouch.gameObject.layer=9;
             float uiScale=Screen.width/1280f;
             float top=104f*uiScale/Screen.height, bottom=220f*uiScale/Screen.height;
-            sourceCamera.enabled=!firstPerson;
+            sourceCamera.enabled=true;
             sourceCamera.rect=new Rect(0,bottom,.5f,Mathf.Max(.1f,1-top-bottom));
-            displayCamera.rect=new Rect(firstPerson?0:.5f,bottom,firstPerson?1:.5f,Mathf.Max(.1f,1-top-bottom));
+            displayCamera.rect=new Rect(.5f,bottom,.5f,Mathf.Max(.1f,1-top-bottom));
             displayed.Head.gameObject.SetActive(!firstPerson);
             if(firstPerson)
             {
@@ -127,9 +127,10 @@ namespace ClassEmbodimentDemo
             GUI.Box(new Rect(0,0,w,104),GUIContent.none);
             GUI.Label(new Rect(0,5,w,27),"CROSS-LIMB EMBODIMENT  /  CLASS DEMONSTRATION",title);
             GUI.Label(new Rect(0,33,w,23),"SIMULATED INPUT — No Quest tracking, physical touch sensing, or validated embodiment",label);
-            GUI.Label(new Rect(0,56,firstPerson?w:w*.5f,24),firstPerson?"FIRST-PERSON VIRTUAL BODY  •  Hold right mouse button to look around":"SIMULATED PHYSICAL BODY  •  blue shirt",label);
-            if(!firstPerson) GUI.Label(new Rect(w*.5f,56,w*.5f,24),"DISPLAYED VIRTUAL BODY  •  dark shirt",label);
-            GUI.Label(new Rect(0,80,w,22),firstPerson?"Your LEFT is screen-left; your RIGHT is screen-right. Desktop preview, not stereoscopic VR.":"FRONT VIEW: participant RIGHT = screen-left  |  participant LEFT = screen-right",label);
+            GUI.Label(new Rect(0,56,w*.5f,24),"SIMULATED PHYSICAL BODY  •  blue shirt",label);
+            GUI.Label(new Rect(w*.5f,56,w*.5f,24),firstPerson?"FIRST-PERSON VIRTUAL BODY  •  Right mouse: look around":"DISPLAYED VIRTUAL BODY  •  dark shirt",label);
+            GUI.Label(new Rect(0,80,w*.5f,22),"FRONT VIEW: participant RIGHT ← screen → participant LEFT",label);
+            GUI.Label(new Rect(w*.5f,80,w*.5f,22),firstPerson?"FIRST PERSON: your LEFT ← screen → your RIGHT":"FRONT VIEW: participant RIGHT ← screen → participant LEFT",label);
             GUILayout.BeginArea(new Rect(8,h-214,w-16,210),GUI.skin.box);
             GUILayout.BeginHorizontal();GUILayout.Label("Movement",GUILayout.Width(80));
             if(GUILayout.Button("Normal / congruent"))condition=MovementCondition.Congruent;

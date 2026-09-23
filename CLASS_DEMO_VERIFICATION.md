@@ -42,3 +42,7 @@ These are renders of the procedural Unity avatar, not headset captures and not c
 - Both comparison cameras now face the avatars. Anatomical left/right is labeled explicitly. Avatar facial landmarks and rounded palms improve presentation, but the geometry remains stylized, not photorealistic.
 - First-person mode uses a full-width monoscopic view, right-mouse look, and recenter. Mouse-look interaction and every final UI click have not been manually exercised; rendered camera placement and compilation were checked.
 - Quest tracking remains unimplemented in this demo; all source movement is simulated. No baseline packages, settings, or QuestBootstrap assets were changed.
+
+## Split-screen first-person update
+
+The source camera now stays enabled on the left in both viewing modes. The right camera switches between observer and first-person perspectives. Each panel labels its own left/right convention, since the front-facing source and first-person avatar have different screen-side conventions. Documentation updated accordingly.
