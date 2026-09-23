@@ -70,3 +70,29 @@ VERIFICATION.md
 ```
 
 Generated local outputs excluded from Git: `Builds/QuestHeadTracking.apk`, `Library/`, `Logs/`, `Temp/`, `UserSettings/`, `.utmp/` native build intermediates, and IDE caches (`.vscode/`, `*.slnx`). These are rebuildable outputs, not source changes.
+
+## Class-demo branch additions
+
+The original inventory above records the Milestone 1 baseline. This branch adds:
+
+```text
+Assets/ClassDemo/Editor.meta
+Assets/ClassDemo/Editor/ClassDemoSetup.cs
+Assets/ClassDemo/Editor/ClassDemoSetup.cs.meta
+Assets/ClassDemo/Scenes.meta
+Assets/ClassDemo/Scenes/ClassEmbodimentDemo.unity
+Assets/ClassDemo/Scenes/ClassEmbodimentDemo.unity.meta
+Assets/ClassDemo/Scripts.meta
+Assets/ClassDemo/Scripts/ClassEmbodimentDemo.cs
+Assets/ClassDemo/Scripts/ClassEmbodimentDemo.cs.meta
+Assets/ClassDemo/Scripts/DemoMannequin.cs
+Assets/ClassDemo/Scripts/DemoMannequin.cs.meta
+Assets/ClassDemo/Scripts/DemoMovementMapping.cs
+Assets/ClassDemo/Scripts/DemoMovementMapping.cs.meta
+Assets/ClassDemo.meta
+CLASS_DEMO_VERIFICATION.md
+Docs/class-demo-avatar.png
+Docs/class-demo-first-person.png
+```
+
+It also updates `CLASS_DEMO.md`, `README.md`, and this inventory. The original Quest scene, project settings, and packages remain unchanged.

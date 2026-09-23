@@ -1,3 +1,7 @@
+# Class embodiment demo branch
+
+This branch adds a **desktop simulation** for class. Open **Quest Prototype → Class Demo → Create or Open Demo Scene**, then press **Play** and select **Game**. Read [CLASS_DEMO.md](CLASS_DEMO.md) for controls and limitations. It does not complete or validate later Quest research milestones. The original Milestone 1 documentation follows.
+
 # Quest head-tracking bootstrap — Milestone 1
 
 Status: implementation/build verification is recorded in `VERIFICATION.md`. Quest hardware acceptance is **pending** until the researcher runs the checklist below. Do not start Milestone 2 on the strength of a successful build alone.
