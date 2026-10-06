@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Researcher controls for the M3 development APK; dimensions are centimetres."""
+"""Researcher controls for the M3/M4 development APKs; dimensions are centimetres."""
 import argparse
 import json
 import math
@@ -7,8 +7,7 @@ import pathlib
 import subprocess
 import tempfile
 
-APP = 'org.mirrortherapy.questprototype.seated'
-REMOTE = '/sdcard/Android/data/' + APP + '/files/seated-setup.json'
+
 DEFAULT_ADB = '/Applications/Unity/Hub/Editor/6000.6.2f1/PlaybackEngines/AndroidPlayer/SDK/platform-tools/adb'
 FIELDS = {
     'table-height': ('tableHeight', 45, 110),
@@ -23,6 +22,9 @@ FIELDS = {
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--app', choices=['seated', 'mirror'], default='mirror', help='Default: M4 mirror; use seated for M3')
+    parser.add_argument('--condition', choices=['normal', 'left-to-right', 'right-to-left'])
+    parser.add_argument('--source-hand', choices=['show', 'hide'], help='In a mirrored condition show both hands or only the opposite hand')
     parser.add_argument('--adb', default=DEFAULT_ADB)
     parser.add_argument('--serial', help='Required when several devices are connected')
     parser.add_argument('--align', action='store_true', help='Capture body frame NOW: wearer must be seated and looking forward')
@@ -30,6 +32,7 @@ def main():
     for flag in FIELDS:
         parser.add_argument('--' + flag + '-cm', type=float)
     args = parser.parse_args()
+    REMOTE = "/sdcard/Android/data/org.mirrortherapy.questprototype." + args.app + "/files/seated-setup.json"
     adb = [args.adb] + (['-s', args.serial] if args.serial else [])
     def run(*parts):
         return subprocess.check_output(adb + list(parts), text=True, stderr=subprocess.STDOUT)
@@ -49,8 +52,15 @@ def main():
             data['tableAlignmentConfirmed'] = False
         if args.confirm_table:
             data['tableAlignmentConfirmed'] = True
+        condition_changed = args.condition is not None or args.source_hand is not None
+        if condition_changed and 'movementCondition' not in data:
+            parser.error('This installed app does not support movement conditions. Use the M4 mirror app.')
+        if args.condition is not None:
+            data['movementCondition'] = ['normal', 'left-to-right', 'right-to-left'].index(args.condition)
+        if args.source_hand is not None:
+            data['showSourceHand'] = args.source_hand == 'show'
         data['requestAlignment'] = args.align
-        if changed or args.align or args.confirm_table:
+        if changed or args.align or args.confirm_table or condition_changed:
             with tempfile.TemporaryDirectory(prefix='quest-seated-') as tmp:
                 path = pathlib.Path(tmp) / 'seated-setup.json'
                 path.write_text(json.dumps(data, indent=2) + '\n')

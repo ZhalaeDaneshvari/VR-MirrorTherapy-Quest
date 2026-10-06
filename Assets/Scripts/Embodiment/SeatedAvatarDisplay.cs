@@ -7,17 +7,22 @@ namespace QuestResearch.Embodiment
     // First-person upper body. Only hands/wrists come from tracking; shoulders and elbows are estimates.
     public sealed class SeatedAvatarDisplay : MonoBehaviour
     {
-        [SerializeField] NormalHandMapping mapping;
+        [SerializeField] MovementRemapper mapping;
         [SerializeField] SeatedSetup setup;
         [SerializeField] Transform trackingSpace;
         [SerializeField] Material skin,shirt,tableMaterial;
+        [SerializeField] RemappedHandMesh leftHandPrefab, rightHandPrefab;
+        readonly RemappedHandMesh[] handMeshes = new RemappedHandMesh[2];
+        readonly ContinuousArmSurface[] armSurfaces = new ContinuousArmSurface[2];
+        public void ConfigureMeshes(RemappedHandMesh left, RemappedHandMesh right)
+        { leftHandPrefab = left; rightHandPrefab = right; }
         Transform body,torso,tableTop;
         readonly Transform[] tableLegs=new Transform[4],upper=new Transform[2],forearm=new Transform[2],handRoots=new Transform[2],palms=new Transform[2];
         Transform[][] joints,bones;
         int[] parents;
         bool ready;
         bool[] previousReach={true,true};
-        public void Configure(NormalHandMapping targets,SeatedSetup alignment,Transform space,Material skinMaterial,Material shirtMaterial,Material table)
+        public void Configure(MovementRemapper targets,SeatedSetup alignment,Transform space,Material skinMaterial,Material shirtMaterial,Material table)
         {mapping=targets;setup=alignment;trackingSpace=space;skin=skinMaterial;shirt=shirtMaterial;tableMaterial=table;}
         void Start()
         {
@@ -36,6 +41,16 @@ namespace QuestResearch.Embodiment
             joints=new Transform[2][];bones=new Transform[2][];
             for(int side=0;side<2;side++)
             {
+                var prefab = side == 0 ? leftHandPrefab : rightHandPrefab;
+                if (prefab != null)
+                {
+                    handMeshes[side] = Instantiate(prefab, trackingSpace, false);
+                    armSurfaces[side] = new GameObject(side == 0 ? "Left continuous arm (IK)" : "Right continuous arm (IK)").AddComponent<ContinuousArmSurface>();
+                    armSurfaces[side].transform.SetParent(body, false);
+                    armSurfaces[side].Initialize(skin);
+                    handRoots[side] = handMeshes[side].transform;
+                    continue;
+                }
                 upper[side]=Part(side==0?"Left upper arm (IK)":"Right upper arm (IK)",PrimitiveType.Capsule,body,skin);
                 forearm[side]=Part(side==0?"Left forearm (IK)":"Right forearm (IK)",PrimitiveType.Capsule,body,skin);
                 handRoots[side]=new GameObject(side==0?"Displayed left hand":"Displayed right hand").transform;
@@ -77,6 +92,13 @@ namespace QuestResearch.Embodiment
         void Draw(int side,DisplayedHandPose hand,bool bodyVisible)
         {
             handRoots[side].gameObject.SetActive(setup.HeadTracked);
+            if (handMeshes[side] != null)
+                handMeshes[side].Apply(hand, trackingSpace, setup.HeadTracked);
+            else DrawPrimitiveHand(side, hand);
+            DrawArm(side, hand, bodyVisible);
+        }
+        void DrawPrimitiveHand(int side, DisplayedHandPose hand)
+        {
             for(int i=0;i<hand.Joints.Length;i++)
             {
                 bool valid=hand.Valid[i];joints[side][i].gameObject.SetActive(valid);
@@ -101,6 +123,10 @@ namespace QuestResearch.Embodiment
                 }
                 else palms[side].gameObject.SetActive(false);
             }
+        }
+        void DrawArm(int side, DisplayedHandPose hand, bool bodyVisible)
+        {
+            int w = XRHandJointID.Wrist.ToIndex();
             bool reachable=false;
             if(bodyVisible&&hand.Valid[w])
             {
@@ -109,11 +135,20 @@ namespace QuestResearch.Embodiment
                 Vector3 wrist=setup.BodyFrame.InverseTransformPoint(trackingSpace.TransformPoint(hand.Joints[w].position));
                 Vector3 pole=new Vector3(side==0?-1:1,-.6f,-.3f);
                 reachable=SeatedArmMath.TryElbow(shoulder,wrist,p.upperArmLength,p.forearmLength,pole,out Vector3 elbow);
-                if(reachable){Segment(upper[side],shoulder,elbow,.075f);Segment(forearm[side],elbow,wrist,.058f);}
+                if(reachable)
+                {
+                    if (armSurfaces[side] != null)
+                    {
+                        Vector3 across = setup.BodyFrame.InverseTransformDirection(trackingSpace.rotation * hand.Joints[w].rotation * Vector3.right);
+                        armSurfaces[side].Apply(shoulder, elbow, wrist, across);
+                    }
+                    else { Segment(upper[side],shoulder,elbow,.075f);Segment(forearm[side],elbow,wrist,.058f); }
+                }
                 if(reachable!=previousReach[side])Debug.Log($"[Seated] {(side==0?"Left":"Right")} arm reachable={reachable}; hand remains at tracked position. Adjust estimated body dimensions if needed.");
                 previousReach[side]=reachable;
             }
-            upper[side].gameObject.SetActive(reachable);forearm[side].gameObject.SetActive(reachable);
+            if (armSurfaces[side] != null) armSurfaces[side].gameObject.SetActive(reachable);
+            else { upper[side].gameObject.SetActive(reachable);forearm[side].gameObject.SetActive(reachable); }
         }
         static void Segment(Transform segment,Vector3 from,Vector3 to,float diameter)
         {segment.localPosition=(from+to)*.5f;segment.localRotation=Quaternion.FromToRotation(Vector3.up,to-from);segment.localScale=new Vector3(diameter,Vector3.Distance(from,to)*.5f,diameter);}

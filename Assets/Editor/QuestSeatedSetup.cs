@@ -36,7 +36,7 @@ public static class QuestSeatedSetup
             var light=new GameObject("Soft scene light").AddComponent<Light>();light.type=LightType.Directional;light.intensity=.7f;light.transform.rotation=Quaternion.Euler(45,20,0);
             var floor=GameObject.CreatePrimitive(PrimitiveType.Cube);floor.name="Plain floor";floor.transform.position=new Vector3(0,-.025f,0);floor.transform.localScale=new Vector3(12,.05f,12);
             Object.DestroyImmediate(floor.GetComponent<Collider>());floor.GetComponent<Renderer>().sharedMaterial=Material("SeatedFloor",new Color(.61f,.63f,.64f));
-            var mapping=origin.gameObject.AddComponent<NormalHandMapping>();mapping.Configure(source);
+            var mapping=origin.gameObject.AddComponent<MovementRemapper>();mapping.Configure(source);
             var setup=origin.gameObject.AddComponent<SeatedSetup>();setup.Configure(origin.CameraFloorOffsetObject.transform,origin.Camera.transform,text);
             origin.gameObject.AddComponent<SeatedAvatarDisplay>().Configure(mapping,setup,origin.CameraFloorOffsetObject.transform,
                 Material("SeatedSkin",new Color(.73f,.51f,.34f)),Material("SeatedShirt",new Color(.22f,.31f,.39f)),Material("SeatedTable",new Color(.74f,.71f,.65f)));

@@ -11,11 +11,13 @@ namespace QuestResearch.Embodiment
     {
         public float tableHeight=.74f,tableWidth=1.10f,tableDepth=.65f,tableNearEdge=.18f;
         public float shoulderWidth=.38f,shoulderDrop=.22f,upperArmLength=.30f,forearmLength=.26f;
+        public MovementCondition movementCondition = MovementCondition.Normal;
+        public bool showSourceHand = true;
         public bool tableAlignmentConfirmed=false;
         public bool requestAlignment=false;
         public bool Valid()
         {
-            return Between(tableHeight,.45f,1.1f)&&Between(tableWidth,.6f,2f)&&Between(tableDepth,.35f,1.2f)
+            return Enum.IsDefined(typeof(MovementCondition), movementCondition) && Between(tableHeight,.45f,1.1f)&&Between(tableWidth,.6f,2f)&&Between(tableDepth,.35f,1.2f)
                 &&Between(tableNearEdge,.05f,.65f)&&Between(shoulderWidth,.25f,.6f)&&Between(shoulderDrop,.12f,.4f)
                 &&Between(upperArmLength,.18f,.45f)&&Between(forearmLength,.18f,.4f);
         }
@@ -67,7 +69,7 @@ namespace QuestResearch.Embodiment
             if(now>=nextLabel&&label!=null)
             {
                 nextLabel=now+.25;
-                label.text="M3  SEATED EMBODIMENT - NORMAL MAPPING\n"+Message+"\nTable height "+(parameters.tableHeight*100).ToString("F0")+" cm / near edge "+(parameters.tableNearEdge*100).ToString("F0")+" cm\n"+(parameters.tableAlignmentConfirmed?"Table placement confirmed by researcher":"TABLE UNCALIBRATED - align to a REAL table first")+"\nElbows/shoulders are estimates. No clinician-hand tracking yet.";
+                label.text="MOVEMENT: "+parameters.movementCondition+(parameters.movementCondition==MovementCondition.Normal?" / both tracked hands":parameters.showSourceHand?" / source visible":" / opposite only")+"\n"+Message+"\nTable height "+(parameters.tableHeight*100).ToString("F0")+" cm / near edge "+(parameters.tableNearEdge*100).ToString("F0")+" cm\n"+(parameters.tableAlignmentConfirmed?"Table placement confirmed by researcher":"TABLE UNCALIBRATED - align to a REAL table first")+"\nElbows/shoulders are estimates. No clinician-hand tracking yet.";
             }
         }
         void Load(bool allowAlignment)
@@ -77,12 +79,17 @@ namespace QuestResearch.Embodiment
                 var candidate=JsonUtility.FromJson<SeatedParameters>(File.ReadAllText(settingsPath));
                 if(candidate==null||!candidate.Valid())throw new ArgumentException("Setup dimensions are outside supported ranges.");
                 bool requested=candidate.requestAlignment;
-                candidate.requestAlignment=false;parameters=candidate;
+                candidate.requestAlignment=false;
+                bool conditionChanged = candidate.movementCondition != parameters.movementCondition || candidate.showSourceHand != parameters.showSourceHand;
+                parameters=candidate;
+                // Consume this file version before side effects, even if acknowledgement cannot be saved.
+                lastWrite=File.GetLastWriteTimeUtc(settingsPath);
+                if(conditionChanged) Debug.Log($"[Movement] t={Time.realtimeSinceStartupAsDouble:F3} condition={parameters.movementCondition} showSource={parameters.showSourceHand}");
                 if(allowAlignment&&requested)Align();
                 else Changed?.Invoke();
                 Save();
             }
-            catch(Exception e) when(e is IOException||e is ArgumentException)
+            catch(Exception e) when(e is IOException||e is ArgumentException||e is UnauthorizedAccessException)
             {
                 Message="Setup rejected; retaining previous parameters";
                 Debug.LogWarning("[Seated] "+Message+": "+e.Message);
@@ -92,7 +99,15 @@ namespace QuestResearch.Embodiment
         void Save()
         {
             parameters.requestAlignment=false;
-            File.WriteAllText(settingsPath,JsonUtility.ToJson(parameters,true));lastWrite=File.GetLastWriteTimeUtc(settingsPath);
+            try
+            {
+                File.WriteAllText(settingsPath,JsonUtility.ToJson(parameters,true));
+                lastWrite=File.GetLastWriteTimeUtc(settingsPath);
+            }
+            catch(Exception e) when(e is IOException || e is UnauthorizedAccessException)
+            {
+                Debug.LogWarning("[Seated] Settings applied, but acknowledgement could not be saved: "+e.Message);
+            }
         }
         public void Align()
         {
@@ -109,7 +124,7 @@ namespace QuestResearch.Embodiment
             alignedInput=inputs.Find(x=>x.running);
             if(alignedInput!=null)alignedInput.trackingOriginUpdated+=OriginChanged;
             SeatedHeadHeight=head.y;Aligned=true;
-            Message="Body aligned / normal left-to-left and right-to-right";
+            Message="Body aligned / movement condition shown above";
             Debug.Log($"[Seated] Alignment accepted t={Time.realtimeSinceStartupAsDouble:F3} headHeight={head.y:F3} bodyPosition={BodyFrame.localPosition} yaw={BodyFrame.localEulerAngles.y:F1} tableConfirmed={parameters.tableAlignmentConfirmed}");
             Changed?.Invoke();
         }

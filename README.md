@@ -1,3 +1,9 @@
+# Current branch: Milestone 4 — movement mirroring
+
+See [MILESTONE4.md](MILESTONE4.md) for the new hand meshes, left/right mapping controls, required fresh-clone asset configuration, and headset acceptance tests. Automatic clinician-hand tracking remains required future work.
+
+---
+
 # Current branch: Milestone 3 — seated embodiment
 
 See [MILESTONE3.md](MILESTONE3.md) for setup, adjustable table controls, limitations, and headset tests. Automatic clinician-hand tracking is required future work and is not implemented here.

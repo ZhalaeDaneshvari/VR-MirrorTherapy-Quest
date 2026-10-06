@@ -99,3 +99,15 @@ VERIFICATION.md
 - `Assets/Scenes/QuestSeatedEmbodiment.unity`, `Assets/Materials/Seated*.mat`: minimal seated scene and materials.
 - `Tools/seated_setup.py`: researcher-side ADB settings and explicit alignment command.
 - `MILESTONE3.md`: setup and pending hardware acceptance checklist.
+
+## Milestone 4 additions/changes
+
+- `MovementRemapper.cs` replaces `NormalHandMapping.cs`: independent output poses, pure body-frame reflection math, both mapping directions and source visibility.
+- `RemappedHandMesh.cs`: serialized anatomical joint references driven only by displayed poses.
+- `ContinuousArmSurface.cs`: smooth tapered IK arm geometry.
+- `SeatedAvatarDisplay.cs`: optional skinned hands/continuous arms, retains primitive fallback for older scene configuration.
+- `SeatedSetup.cs`: condition configuration and single-consumption file handling.
+- `Assets/Editor/QuestMirrorSetup.cs`: package model reconstruction, M4 scene/build, reflection checks and synthetic preview.
+- `Assets/Scenes/QuestMovementMirror.unity`: isolated build scene.
+- `Tools/seated_setup.py`: M3/M4 app selector, condition and source visibility controls.
+- `MILESTONE4.md`, `THIRD_PARTY_ASSETS.md`: usage, limitations, asset provenance.

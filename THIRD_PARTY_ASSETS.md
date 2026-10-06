@@ -1,0 +1,9 @@
+# Hand mesh provenance
+
+Milestone 4 uses `Samples~/HandVisualizer/Models/LeftHand.fbx` and `RightHand.fbx` from the pinned `com.unity.xr.hands` **1.9.0** package already resolved by Unity Package Manager.
+
+The installed package's `LICENSE.md` identifies copyright © 2026 Unity Technologies and the [Unity Package Distribution License](https://unity.com/legal/licenses/unity-package-distribution-license). Package assets retain those terms; they are not relicensed as this project's original source code.
+
+`QuestMirrorSetup.Configure` copies the models and their importer metadata into local ignored `Assets/GeneratedHands`, then builds display-only prefabs with explicit XR joint references. Raw models and generated prefabs are not uploaded to the Git repository. Builds incorporate the assets as project content. Every fresh checkout must run **Quest Prototype → Milestone 4 → Configure Movement Mirror** after resolving pinned packages.
+
+Only the two standard hand models are imported. No sample tracking components, scene, shaders, interactions, Oculus Integration, or Meta SDK bundle are imported. Rendering uses the project's existing material and custom displayed-pose driver.
