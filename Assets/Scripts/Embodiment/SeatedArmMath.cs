@@ -3,6 +3,10 @@ namespace QuestResearch.Embodiment
 {
     public static class SeatedArmMath
     {
+        // Prefer elbows down/back beside the torso, with only a small outward bias.
+        // These are directional ratios, not measured offsets or forced elbow positions.
+        public static Vector3 RestingElbowPole(bool left) => new Vector3(left ? -.12f : .12f, -1f, -.35f);
+
         // Analytic two-bone IK in participant-local coordinates. This estimates an elbow;
         // it does not measure one. Reject unreachable targets instead of stretching anatomy.
         public static bool TryElbow(Vector3 shoulder,Vector3 wrist,float upper,float lower,Vector3 pole,out Vector3 elbow)

@@ -111,3 +111,11 @@ VERIFICATION.md
 - `Assets/Scenes/QuestMovementMirror.unity`: isolated build scene.
 - `Tools/seated_setup.py`: M3/M4 app selector, condition and source visibility controls.
 - `MILESTONE4.md`, `THIRD_PARTY_ASSETS.md`: usage, limitations, asset provenance.
+
+### M4 headset feedback fixes
+
+- `SeatedTestControls.cs`: head-gaze/physical-pinch test buttons, delayed Realign, height adjustment and release-to-arm pinch latch.
+- `Assets/Editor/HandWristSeamBuilder.cs`: remove generated hand wrist caps, derive boundary rings and regenerate locally modified hand meshes.
+- `RemappedHandMesh.cs` and `ContinuousArmSurface.cs`: use matching deformed boundary positions/normals for the arm-hand join.
+- `SeatedArmMath.cs`: down/back seated elbow direction with modest outward bias.
+- `SetupButton*.mat`: simple unlit test-button materials, no additional UI/XR package.

@@ -33,14 +33,27 @@ public static class QuestMirrorSetup
         var setup = origin.GetComponent<SeatedSetup>();
         origin.GetComponent<MovementRemapper>().ConfigureFrame(setup, origin.CameraFloorOffsetObject.transform);
         origin.GetComponent<SeatedAvatarDisplay>().ConfigureMeshes(left, right);
+        var controls=origin.GetComponent<SeatedTestControls>();
+        if(controls==null)controls=origin.gameObject.AddComponent<SeatedTestControls>();
+        controls.Configure(setup,origin.GetComponent<HandTrackingSource>(),origin.Camera.transform,
+            ControlMaterial("SetupButton",new Color(.12f,.18f,.22f)),ControlMaterial("SetupButtonHover",new Color(.12f,.5f,.55f)),Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
+        origin.Camera.GetComponentInChildren<TextMesh>(true).GetComponent<MeshRenderer>().enabled=false;
         EditorSceneManager.SaveScene(scene);
         PlayerSettings.productName = "Quest Movement Mirror";
-        PlayerSettings.bundleVersion = "0.4.0";
-        PlayerSettings.Android.bundleVersionCode = 4;
+        PlayerSettings.bundleVersion = "0.4.1";
+        PlayerSettings.Android.bundleVersionCode = 5;
         PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, AppId);
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
         AssetDatabase.SaveAssets();
         Validate();
+    }
+
+    static Material ControlMaterial(string name,Color color)
+    {
+        string path="Assets/Materials/"+name+".mat";
+        var material=AssetDatabase.LoadAssetAtPath<Material>(path);
+        if(material==null){material=new Material(Shader.Find("Unlit/Color"));AssetDatabase.CreateAsset(material,path);}
+        material.color=color;return material;
     }
 
     static void ImportHandModels()
@@ -56,6 +69,11 @@ public static class QuestMirrorSetup
             File.Copy(source + ".meta", Generated + "/" + name + ".meta", true);
         }
         AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+        foreach(string side in new[]{"Left","Right"})
+        {
+            var importer=(ModelImporter)AssetImporter.GetAtPath(Generated+"/"+side+"Hand.fbx");
+            if(!importer.isReadable){importer.isReadable=true;importer.SaveAndReimport();}
+        }
     }
 
     static RemappedHandMesh CreateHand(string side)
@@ -80,10 +98,14 @@ public static class QuestMirrorSetup
         {
             renderer.sharedMaterials = Enumerable.Repeat(material, renderer.sharedMaterials.Length).ToArray();
             renderer.updateWhenOffscreen = true;
+            renderer.quality=SkinQuality.Bone4;
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
         var driver = instance.AddComponent<RemappedHandMesh>();
         driver.Configure(bones, renderers);
+        if(renderers.Length!=1)throw new BuildFailedException("Expected one hand mesh for wrist seam construction.");
+        HandWristSeamBuilder.Build(renderers[0], bones[XRHandJointID.Wrist.ToIndex()], Generated+"/"+side+"OpenWrist.asset",out var seamPoints,out var seamNormals,out var seamIndices);
+        driver.ConfigureSeam(seamPoints,seamNormals,seamIndices);
         string path = Generated + "/" + side + "DisplayedHand.prefab";
         // Stable generated-prefab GUIDs keep the checked-in scene reproducible on a fresh clone.
         if (!File.Exists(path + ".meta"))
@@ -100,10 +122,54 @@ public static class QuestMirrorSetup
         QuestProjectSetup.Validate();
         if (PlayerSettings.GetApplicationIdentifier(NamedBuildTarget.Android) != AppId) throw new BuildFailedException("Not the M4 app configuration.");
         TestReflection();
+        TestControlsAndSeam();
         foreach (string side in new[] { "Left", "Right" })
             if (AssetDatabase.LoadAssetAtPath<RemappedHandMesh>(Generated + "/" + side + "DisplayedHand.prefab") == null)
                 throw new BuildFailedException("Use Milestone 4 Configure to generate meshes from the installed XR Hands package.");
         Debug.Log("[Mirror] PASS: body-frame reflection, orientation handedness, double reflection, mapping direction, source visibility and tracking invalidation.");
+    }
+
+    static void TestControlsAndSeam()
+    {
+        var pinch=new PinchLatch();
+        Require(!pinch.UpdateDistance(.01f),"Acquired closed hand clicked.");
+        Require(!pinch.UpdateDistance(.05f)&&pinch.UpdateDistance(.01f)&&!pinch.UpdateDistance(.01f),"Pinch release hysteresis failed.");
+        pinch.Reset();Require(!pinch.UpdateDistance(.01f),"Tracking reacquisition clicked.");
+        var centres=new[]{Vector3.zero};var sizes=new[]{new Vector2(.4f,.06f)};
+        Require(SeatedTestControls.HitButton(new Vector3(0,0,-1),Vector3.forward,centres,sizes)==0,"Forward button ray missed.");
+        Require(SeatedTestControls.HitButton(new Vector3(.3f,0,-1),Vector3.forward,centres,sizes)==-1,"Outside button ray hit.");
+        Require(SeatedTestControls.HitButton(new Vector3(0,0,-1),Vector3.back,centres,sizes)==-1,"Backwards button ray hit.");
+        Vector3 shoulder=new Vector3(-.19f,1.04f,-.07f),wristPosition=new Vector3(-.19f,.85f,.35f);
+        Require(SeatedArmMath.TryElbow(shoulder,wristPosition,.3f,.26f,SeatedArmMath.RestingElbowPole(true),out var tucked),"Resting IK failed.");
+        SeatedArmMath.TryElbow(shoulder,wristPosition,.3f,.26f,new Vector3(-1,-.6f,-.3f),out var old);
+        Require(Mathf.Abs(tucked.x-shoulder.x)<Mathf.Abs(old.x-shoulder.x),"Elbow did not move toward torso.");
+        foreach(string side in new[]{"Left","Right"})
+        {
+            var prefab=AssetDatabase.LoadAssetAtPath<RemappedHandMesh>(Generated+"/"+side+"DisplayedHand.prefab");
+            Require(prefab!=null,"Generate hand assets before validation.");
+            var space=new GameObject("Seam test space").transform;
+            space.SetPositionAndRotation(new Vector3(2,.4f,-3),Quaternion.Euler(0,61,0));
+            var hand=Object.Instantiate(prefab,space,false);
+            var pose=new DisplayedHandPose();
+            for(int i=0;i<pose.Joints.Length;i++)
+            {
+                pose.Valid[i]=true;
+                pose.Joints[i]=new Pose(space.InverseTransformPoint(hand.Joints[i].position),Quaternion.Inverse(space.rotation)*hand.Joints[i].rotation*Quaternion.Euler(i%3*12,0,0));
+            }
+            hand.Apply(pose,space,true);
+            var renderer=hand.GetComponentInChildren<SkinnedMeshRenderer>();var baked=new Mesh();renderer.BakeMesh(baked);
+            var vertices=baked.vertices;var wrist=hand.Joints[XRHandJointID.Wrist.ToIndex()];
+            for(int i=0;i<hand.WristSeamPoints.Length;i++)
+                Near(wrist.TransformPoint(hand.WristSeamPoints[i]),renderer.transform.TransformPoint(vertices[hand.SeamVertexIndices[i]]),"CPU wrist skinning differs from actual mesh.");
+            var arm=new GameObject("Seam test arm").AddComponent<ContinuousArmSurface>();
+            arm.Initialize(AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/SeatedSkin.mat"),hand.WristSeamPoints,hand.WristSeamNormals);
+            arm.Apply(wrist.position+Vector3.back*.5f,wrist.position+Vector3.back*.25f,wrist.position,wrist.rotation);
+            var armVertices=arm.GetComponent<MeshFilter>().sharedMesh.vertices;
+            for(int i=0;i<hand.WristSeamPoints.Length;i++)
+                Near(armVertices[armVertices.Length-hand.WristSeamPoints.Length+i],wrist.TransformPoint(hand.WristSeamPoints[i]),"Arm/hand seam detached.");
+            Object.DestroyImmediate(arm.gameObject);Object.DestroyImmediate(baked);Object.DestroyImmediate(space.gameObject);
+        }
+        Debug.Log("[SetupFix] PASS: pinch debouncing, gaze hit tests, tucked elbow and deformed arm/hand seam positions.");
     }
 
     static void Require(bool pass, string message) { if (!pass) throw new BuildFailedException(message); }
@@ -156,7 +222,35 @@ public static class QuestMirrorSetup
         Require(!a.Valid.Any(x=>x)&&!b.Valid.Any(x=>x),"Mirroring without calibration was allowed.");
     }
 
-    public static void BuildAndPreview() { Build(); RenderPreview(); }
+    [Serializable] public class MeshDump { public Vector3[] vertices; public int[] triangles; }
+    public static void InspectWrist()
+    {
+        var hand=Object.Instantiate(AssetDatabase.LoadAssetAtPath<RemappedHandMesh>(Generated+"/LeftDisplayedHand.prefab"));
+        var renderer=hand.GetComponentInChildren<SkinnedMeshRenderer>();
+        var mesh=new Mesh();renderer.BakeMesh(mesh);
+        var wrist=hand.Joints[XRHandJointID.Wrist.ToIndex()];
+        var vertices=mesh.vertices.Select(v=>wrist.InverseTransformPoint(renderer.transform.TransformPoint(v))).ToArray();
+        File.WriteAllText("/private/tmp/quest-wrist-mesh.json",JsonUtility.ToJson(new MeshDump{vertices=vertices,triangles=mesh.triangles}));
+        Object.DestroyImmediate(hand);Object.DestroyImmediate(mesh);
+    }
+
+    public static void RenderControlPreview()
+    {
+        var scene=EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
+        var camera=new GameObject("Control preview camera").AddComponent<Camera>();
+        camera.transform.position=new Vector3(0,1.2f,0);camera.fieldOfView=65;camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(.68f,.70f,.71f);
+        var controls=new GameObject("Preview controls").AddComponent<SeatedTestControls>();
+        controls.Configure(null,null,camera.transform,AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/SetupButton.mat"),AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/SetupButtonHover.mat"),Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
+        controls.SendMessage("Start");
+        var panel=scene.GetRootGameObjects().Single(x=>x.name=="Testing controls - gaze and pinch");
+        panel.transform.position=camera.transform.position+Vector3.forward*.65f+Vector3.up*.12f;panel.SetActive(true);
+        var title=panel.GetComponentsInChildren<TextMesh>().Single(x=>x.text=="Setup controls");title.text="Normal / table 74 cm\nWaiting for alignment\nTable uncalibrated";
+        var texture=new RenderTexture(1280,960,24);camera.targetTexture=texture;camera.Render();RenderTexture.active=texture;
+        var png=new Texture2D(1280,960,TextureFormat.RGB24,false);png.ReadPixels(new Rect(0,0,1280,960),0,0);png.Apply();File.WriteAllBytes("/private/tmp/quest-controls-preview.png",png.EncodeToPNG());
+        camera.targetTexture=null;RenderTexture.active=null;Object.DestroyImmediate(texture);Object.DestroyImmediate(png);
+    }
+
+    public static void BuildAndPreview() { Build(); RenderPreview(); RenderControlPreview(); }
 
     // Editor-only synthetic pose preview; never substitutes for headset tracking validation.
     public static void RenderPreview()
@@ -183,9 +277,9 @@ public static class QuestMirrorSetup
             var shoulder=new Vector3(side==0?-.19f:.19f,1.03f,-.07f);
             var target=side==0?pose:mirrored;
             var wristPose=target.Joints[XRHandJointID.Wrist.ToIndex()];
-            if(!SeatedArmMath.TryElbow(shoulder,wristPose.position,.30f,.26f,new Vector3(side==0?-1:1,-.6f,-.3f),out var elbow))throw new BuildFailedException("Preview IK failed.");
-            var arm=new GameObject("Preview arm").AddComponent<ContinuousArmSurface>();arm.Initialize(skin);
-            arm.Apply(shoulder,elbow,wristPose.position,wristPose.rotation*Vector3.right);
+            if(!SeatedArmMath.TryElbow(shoulder,wristPose.position,.30f,.26f,SeatedArmMath.RestingElbowPole(side==0),out var elbow))throw new BuildFailedException("Preview IK failed.");
+            var arm=new GameObject("Preview arm").AddComponent<ContinuousArmSurface>();arm.Initialize(skin,(side==0?left:right).WristSeamPoints,(side==0?left:right).WristSeamNormals);
+            arm.Apply(shoulder,elbow,wristPose.position,wristPose.rotation);
         }
         var table=GameObject.CreatePrimitive(PrimitiveType.Cube);table.transform.position=new Vector3(0,.72f,.505f);table.transform.localScale=new Vector3(1.1f,.04f,.65f);
         table.GetComponent<Renderer>().sharedMaterial=AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/SeatedTable.mat");

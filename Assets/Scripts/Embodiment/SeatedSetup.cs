@@ -109,6 +109,13 @@ namespace QuestResearch.Embodiment
                 Debug.LogWarning("[Seated] Settings applied, but acknowledgement could not be saved: "+e.Message);
             }
         }
+        public void AdjustTableHeight(float metres)
+        {
+            parameters.tableHeight=Mathf.Clamp(parameters.tableHeight+metres,.45f,1.1f);
+            parameters.tableAlignmentConfirmed=false;
+            Debug.Log($"[Seated] Table height adjusted to {parameters.tableHeight:F3} m; still uncalibrated.");
+            Changed?.Invoke();Save();
+        }
         public void Align()
         {
             inputs.Clear();SubsystemManager.GetSubsystems(inputs);
@@ -118,6 +125,7 @@ namespace QuestResearch.Embodiment
             Vector3 forward=Vector3.ProjectOnPlane(trackingSpace.InverseTransformDirection(headCamera.forward),Vector3.up);
             if(forward.sqrMagnitude<.1f||head.y<.65f||head.y>1.65f)
             {Message="Sit comfortably and look straight ahead, then request alignment";Debug.LogWarning("[Seated] "+Message);return;}
+            parameters.tableAlignmentConfirmed=false;
             BodyFrame.localPosition=new Vector3(head.x,0,head.z);
             BodyFrame.localRotation=Quaternion.LookRotation(forward.normalized,Vector3.up);
             if(alignedInput!=null)alignedInput.trackingOriginUpdated-=OriginChanged;

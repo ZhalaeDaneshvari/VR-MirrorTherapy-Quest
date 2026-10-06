@@ -25,3 +25,15 @@ Final APK installed and launched on the connected Quest 3. Logs reached seated s
 Researcher configuration files were delivered for a left-to-right/hidden-source check and then restored to Normal with source shown. No running-loop condition acknowledgement appeared during this observation; do not count file delivery as a wearer or condition-switch acceptance test. No alignment was automatically requested. The app awaits the user wearing it and explicitly aligning.
 
 Legacy working tree remained clean. Implementation and verification are pushed to the private modern repository on the M4 branch.
+
+## 0.4.1 wearer-feedback fixes
+
+User reported the table too low, disconnected-looking wrists and overly splayed elbows. These observations supersede any implied visual acceptance of 0.4.0.
+
+- Added physical-pinch/head-gaze test buttons: three-second Realign, table up/down 2 cm. No new packages.
+- Resting elbow pole now prefers down/back with small lateral bias. Fixed IK segment lengths remain unchanged.
+- Removed wrist caps in locally generated models and joined the forearm to the exact deformed boundary. Matched 30 seam vertices per hand. The seam follows four-weight skinning, rather than assuming every vertex is rigidly attached to the wrist.
+- Editor checks passed: pinch initial/reacquired closure rejection, release-to-arm one-shot clicking, front/back/outside button hit tests, less lateral elbow placement, CPU-skinned seam positions versus Unity BakeMesh under a rotated/translated frame, and exact arm seam positions. Existing reflection checks also passed.
+- Rendered and inspected synthetic arm and control-panel previews. Corrected oversized text found in the first UI preview; final labels fit the buttons. These previews are not headset acceptance.
+- Final Unity Android build and APK signature verification passed. Version 0.4.1 (5), same mirror app ID. SHA-256: `ea7e060efd5674535992f2ea08034b79f7ed7bee8fea3cbfc123b3cdf13a5898`.
+- Remaining wearer checks: button highlighting/clicking, once-only countdown alignment, tabletop height match, wrist appearance through motion, elbows at rest, and mirrored conditions. Table height remains uncalibrated; no physical measurement was invented.

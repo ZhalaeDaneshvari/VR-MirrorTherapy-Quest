@@ -21,7 +21,7 @@ The researcher command defaults to M4:
     python3 Tools/seated_setup.py --condition left-to-right --source-hand hide
     python3 Tools/seated_setup.py --condition normal
 
-Only send alignment while the wearer is seated and looking forward. The app does not listen for voice commands. The table cannot provide physical support.
+Only send alignment while the wearer is seated and looking forward. The app does not listen for voice commands. Version 0.4.1 also has a gaze-and-pinch **REALIGN (3 sec)** button and **Table ±2 cm** controls in the headset. The table cannot provide physical support.
 
 ## Earlier checkpoints
 

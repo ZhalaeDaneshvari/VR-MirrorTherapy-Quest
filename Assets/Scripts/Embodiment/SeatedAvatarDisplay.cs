@@ -47,7 +47,7 @@ namespace QuestResearch.Embodiment
                     handMeshes[side] = Instantiate(prefab, trackingSpace, false);
                     armSurfaces[side] = new GameObject(side == 0 ? "Left continuous arm (IK)" : "Right continuous arm (IK)").AddComponent<ContinuousArmSurface>();
                     armSurfaces[side].transform.SetParent(body, false);
-                    armSurfaces[side].Initialize(skin);
+                    armSurfaces[side].Initialize(skin,handMeshes[side].WristSeamPoints,handMeshes[side].WristSeamNormals);
                     handRoots[side] = handMeshes[side].transform;
                     continue;
                 }
@@ -128,19 +128,19 @@ namespace QuestResearch.Embodiment
         {
             int w = XRHandJointID.Wrist.ToIndex();
             bool reachable=false;
-            if(bodyVisible&&hand.Valid[w])
+            if(bodyVisible&&hand.Valid[w]&&(handMeshes[side]==null||handMeshes[side].Visible))
             {
                 var p=setup.Parameters;
                 Vector3 shoulder=new Vector3((side==0?-1:1)*p.shoulderWidth*.5f,setup.SeatedHeadHeight-p.shoulderDrop,-.07f);
                 Vector3 wrist=setup.BodyFrame.InverseTransformPoint(trackingSpace.TransformPoint(hand.Joints[w].position));
-                Vector3 pole=new Vector3(side==0?-1:1,-.6f,-.3f);
+                Vector3 pole=SeatedArmMath.RestingElbowPole(side==0);
                 reachable=SeatedArmMath.TryElbow(shoulder,wrist,p.upperArmLength,p.forearmLength,pole,out Vector3 elbow);
                 if(reachable)
                 {
                     if (armSurfaces[side] != null)
                     {
-                        Vector3 across = setup.BodyFrame.InverseTransformDirection(trackingSpace.rotation * hand.Joints[w].rotation * Vector3.right);
-                        armSurfaces[side].Apply(shoulder, elbow, wrist, across);
+                        Quaternion wristRotation=Quaternion.Inverse(setup.BodyFrame.rotation)*trackingSpace.rotation*hand.Joints[w].rotation;
+                        armSurfaces[side].Apply(shoulder, elbow, wrist, wristRotation);
                     }
                     else { Segment(upper[side],shoulder,elbow,.075f);Segment(forearm[side],elbow,wrist,.058f); }
                 }

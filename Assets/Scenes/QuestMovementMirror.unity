@@ -168,7 +168,7 @@ MeshRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 251689519}
-  m_Enabled: 1
+  m_Enabled: 0
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
@@ -270,7 +270,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c2fadf230d1919748a9aa21d40f74619, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Unity.InputSystem::UnityEngine.InputSystem.XR.TrackedPoseDriver
   m_TrackingType: 0
   m_UpdateType: 0
@@ -282,15 +282,15 @@ MonoBehaviour:
       m_Type: 0
       m_ExpectedControlType: Vector3
       m_Id: ccf77c22-47e3-49e8-93aa-48662286ff99
-      m_Processors: 
-      m_Interactions: 
+      m_Processors:
+      m_Interactions:
       m_SingletonActionBindings:
-      - m_Name: 
+      - m_Name:
         m_Id: 99ac3b1e-6b1a-4c80-b9a8-6c2b48c7a797
         m_Path: <XRHMD>/centerEyePosition
-        m_Interactions: 
-        m_Processors: 
-        m_Groups: 
+        m_Interactions:
+        m_Processors:
+        m_Groups:
         m_Action: Head Position
         m_Flags: 0
       m_Flags: 0
@@ -303,15 +303,15 @@ MonoBehaviour:
       m_Type: 0
       m_ExpectedControlType: Quaternion
       m_Id: b0559e10-ecd6-463a-9cb3-c14753cd8a77
-      m_Processors: 
-      m_Interactions: 
+      m_Processors:
+      m_Interactions:
       m_SingletonActionBindings:
-      - m_Name: 
+      - m_Name:
         m_Id: 4be37b55-f230-4b36-86d5-67ded30aba1c
         m_Path: <XRHMD>/centerEyeRotation
-        m_Interactions: 
-        m_Processors: 
-        m_Groups: 
+        m_Interactions:
+        m_Processors:
+        m_Groups:
         m_Action: Head Rotation
         m_Flags: 0
       m_Flags: 0
@@ -324,37 +324,37 @@ MonoBehaviour:
       m_Type: 0
       m_ExpectedControlType: Integer
       m_Id: bf75a34e-a595-4ab5-bcd7-d036b318173f
-      m_Processors: 
-      m_Interactions: 
+      m_Processors:
+      m_Interactions:
       m_SingletonActionBindings:
-      - m_Name: 
+      - m_Name:
         m_Id: 2a91ad55-8bbe-464d-a5ec-f9727047a58b
         m_Path: <XRHMD>/trackingState
-        m_Interactions: 
-        m_Processors: 
-        m_Groups: 
+        m_Interactions:
+        m_Processors:
+        m_Groups:
         m_Action: Head Tracking State
         m_Flags: 0
       m_Flags: 0
       m_Priority: 0
     m_Reference: {fileID: 0}
   m_PositionAction:
-    m_Name: 
+    m_Name:
     m_Type: 0
-    m_ExpectedControlType: 
+    m_ExpectedControlType:
     m_Id: 6b17305e-c2ed-4e7c-8d51-17ab17e99187
-    m_Processors: 
-    m_Interactions: 
+    m_Processors:
+    m_Interactions:
     m_SingletonActionBindings: []
     m_Flags: 0
     m_Priority: 0
   m_RotationAction:
-    m_Name: 
+    m_Name:
     m_Type: 0
-    m_ExpectedControlType: 
+    m_ExpectedControlType:
     m_Id: 16750490-b6c8-4b47-ae3e-9de8993184d5
-    m_Processors: 
-    m_Interactions: 
+    m_Processors:
+    m_Interactions:
     m_SingletonActionBindings: []
     m_Flags: 0
     m_Priority: 0
@@ -522,6 +522,7 @@ GameObject:
   - component: {fileID: 1382505039}
   - component: {fileID: 1382505038}
   - component: {fileID: 1382505037}
+  - component: {fileID: 1382505040}
   m_Layer: 0
   m_Name: XR Origin
   m_TagString: Untagged
@@ -539,7 +540,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 02aa7f0679b9341ec8c49d460312e8e8, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::HeadTrackingDiagnostics
 --- !u!114 &1382505032
 MonoBehaviour:
@@ -551,7 +552,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e0cb9aa70a22847b5925ee5f067c10a9, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Unity.XR.CoreUtils::Unity.XR.CoreUtils.XROrigin
   m_Camera: {fileID: 530699733}
   m_OriginBaseGameObject: {fileID: 1382505030}
@@ -584,7 +585,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a1b96d913e0e54040ab8f6d3efc94d0d, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::QuestResearch.Hands.HandTrackingSource
   staleAfterSeconds: 0.25
 --- !u!114 &1382505037
@@ -597,7 +598,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e411f7fcc4b7c4e09a0e936c80816861, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::QuestResearch.Embodiment.SeatedAvatarDisplay
   mapping: {fileID: 1382505039}
   setup: {fileID: 1382505038}
@@ -617,7 +618,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 57f3a4bb06065474f8093689dc5f8921, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::QuestResearch.Embodiment.SeatedSetup
   trackingSpace: {fileID: 1958011034}
   headCamera: {fileID: 530699730}
@@ -645,11 +646,29 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 487e1d54aec8448699e5ab9ee6f096ff, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::QuestResearch.Embodiment.NormalHandMapping
   source: {fileID: 1382505036}
   setup: {fileID: 1382505038}
   trackingSpace: {fileID: 1958011034}
+--- !u!114 &1382505040
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1382505030}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7917a2d30473649d584f7f2bfb23b1a3, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::QuestResearch.Embodiment.SeatedTestControls
+  setup: {fileID: 1382505038}
+  source: {fileID: 1382505036}
+  head: {fileID: 530699730}
+  idleMaterial: {fileID: 2100000, guid: 5073fad4fc8244216aff067b77891261, type: 2}
+  hoverMaterial: {fileID: 2100000, guid: dbc315531253a46b9a35e6494da9edfb, type: 2}
+  font: {fileID: 10102, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1 &1958011033
 GameObject:
   m_ObjectHideFlags: 0

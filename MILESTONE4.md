@@ -10,7 +10,7 @@ Engineering prototype; not a validated clinical intervention. The user saw the M
 - In either mirrored condition, show the source-side hand too (one source drives both virtual hands), or hide it (opposite side only). Normal always shows both independently tracked hands.
 - Anatomical skinned hand meshes replace the joint-sphere display; continuous tapered arm surfaces replace separate capsules. These are generic hands and estimated arms, not personalized anatomy or photorealistic skin.
 - The body frame remains fixed until explicit re-alignment. Missing calibration hides mirrored targets, without silently reverting to normal mapping.
-- Invalid source joints invalidate the corresponding displayed joints. A skinned hand hides entirely on partial joint data, avoiding stale/deformed fingers. IK arms can remain visible if their wrist target is still valid; unreachable arms hide rather than stretch.
+- Invalid source joints invalidate the corresponding displayed joints. A skinned hand hides entirely on partial joint data, avoiding stale/deformed fingers. The connected arm now hides with the skinned hand on partial data; unreachable arms hide rather than stretch.
 - Settings acknowledgements are guarded against write failures so a failed save cannot repeatedly re-align the body.
 
 No new packages, legacy Oculus Integration, clinician-hand sensing, touch rendering, or scientific trial logger were added. Automatic clinician-hand tracking remains REQUIRED future work; there is no manual-touch substitute hidden in this milestone.
@@ -27,7 +27,7 @@ After cloning/checking out this branch, wait for package resolution, then use:
 
 Configure imports only the left/right hand models already supplied in **XR Hands 1.9.0**, resolves all 26 joint references at edit time, and creates display-only prefabs under ignored `Assets/GeneratedHands`. It reassigns generated prefab references in the M4 scene. Run Configure on a fresh clone before opening/testing the scene; missing generated prefabs before this step are expected. Raw Unity sample assets are not redistributed in GitHub; the reconstruction code, source, scene and package pins are committed. See `THIRD_PARTY_ASSETS.md`.
 
-Output: `Builds/QuestMovementMirror.apk`. App ID `org.mirrortherapy.questprototype.mirror`, name **Quest Movement Mirror**, version 0.4.0 (4). M1–M3 app IDs are unchanged. APKs/build caches are not source-controlled.
+Output: `Builds/QuestMovementMirror.apk`. App ID `org.mirrortherapy.questprototype.mirror`, name **Quest Movement Mirror**, version 0.4.1 (5). M1–M3 app IDs are unchanged. APKs/build caches are not source-controlled.
 
 ## Researcher workflow
 
@@ -75,3 +75,18 @@ The second S repairs handedness in the destination joint frame; a single reflect
 Physical snapshots remain in `HandTrackingSource`; displayed poses are independent arrays with source-hand identity, reflection flag and input sequence. The skin driver reads only these displayed targets, not the live XR subsystem. Shoulder/elbow IK uses the displayed wrist, so the whole arm follows the mapped side. The renderer is not a scientific measurement of the limb surface.
 
 Future logging must capture both streams plus calibration/condition and timing. Current Debug logs are development diagnostics only; they are not a durable research dataset.
+
+## 0.4.1: in-headset setup and arm fixes
+
+User feedback: the default 74 cm table was too low, wrists looked disconnected, and elbows were too far out. A real table height has still not been measured or verified; the default is not silently relabelled as calibrated.
+
+A small **TEST SETUP** panel appears ahead of you. Look at a button with your head (not eye tracking); it highlights. Open your thumb/index, then pinch them together once to click. Release before each subsequent click. The buttons read physical hand data even in mirrored/opposite-only modes.
+
+- **REALIGN (3 sec)**: pinch to begin a three-second countdown, then look comfortably straight ahead. Capture still requires valid head tracking and floor origin. Tracking/focus loss cancels the countdown.
+- **Table +2 cm** / **Table -2 cm**: adjust the tabletop in two-centimetre steps until it matches your real table. Height remains labelled uncalibrated, and dimensions persist across launches. No hand pose is moved or clamped to make the table appear aligned.
+
+These controls are for prototype testing; they are not the final participant/researcher interface. External ADB controls still work. The seated body frame is fixed after calibration; the control panel is placed in front at startup/resume and stays still for gaze selection.
+
+Elbow IK now favours down/back beside the torso with a small outward bias. Elbows remain inferred, not measured. The hand model's closed wrist cap is removed in the generated asset; the arm ends at the actual boundary ring. Only that small ring is CPU-skinned with the same four bone weights as the hand renderer, so it follows the deformed hand edge without changing tracked wrist/finger poses. No pose smoothing or added tracking delay is used. Real tracking loss or provider jumps are still possible and must be distinguished from mesh seams.
+
+Re-test in Normal first: palm up/down, wrist flexion, open/closed fingers, hands at rest near the real table. Confirm the button highlights, one pinch makes one adjustment, held pinches do not repeat, and Realign captures once. Then repeat left-to-right and right-to-left tests.
