@@ -1,6 +1,6 @@
 # Milestone 2 verification — 2026-10-06
 
-**Implementation, build, installation, and runtime data arrival verified. User visual hand-tracking acceptance pending.**
+**Implementation, build, installation, and runtime data arrival verified. User confirmed basic visual hand-tracking pass; systematic stress testing remains pending.**
 
 ## Automatically verified
 
@@ -36,3 +36,7 @@ See README checklist: independent hand/wrist movement, finger articulation, left
 - Availability changed during the observation interval, particularly on the right; both hands later returned to Available. A focus loss produced Suspended/zero valid joints, followed by renewed availability after focus returned.
 - No crash or XR_ERROR entry was returned by the scoped startup/error log filter. This is not a comprehensive performance or stability test.
 - Receipt of provider data does not establish correct visual alignment, finger motion, or controlled occlusion/recovery behavior. Those require the user's next headset checks.
+
+## User observation after installation
+
+The user answered “yes everything works” when asked whether both virtual hands align with the real hands and follow wrist/finger movement. Record this as a basic visual alignment and articulation pass. Controlled occlusion, long-duration stability, and all resume scenarios were not separately reported. The user explicitly requested the next milestone.
