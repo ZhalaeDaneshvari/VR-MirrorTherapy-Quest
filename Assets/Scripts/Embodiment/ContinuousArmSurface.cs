@@ -36,7 +36,7 @@ namespace QuestResearch.Embodiment
             renderer.sharedMaterial = material;
             renderer.shadowCastingMode = ShadowCastingMode.Off;
         }
-        public void Apply(Vector3 shoulder, Vector3 elbow, Vector3 wrist, Quaternion wristRotation)
+        public void Apply(Vector3 shoulder, Vector3 elbow, Vector3 wrist, Quaternion wristRotation, float fullness=1.3f)
         {
             seamCentre=Vector3.zero;
             foreach(var point in seamPoints)seamCentre+=point;
@@ -64,6 +64,7 @@ namespace QuestResearch.Embodiment
                 if (across.sqrMagnitude < .1f) across = Vector3.Cross(tangent, Vector3.up).normalized;
                 Vector3 depth = Vector3.Cross(tangent, across).normalized;
                 float radius = t <= .5f ? Mathf.Lerp(.044f, .030f, t * 2) : Mathf.Lerp(.030f, .023f, (t - .5f) * 2) + .004f * Mathf.Sin((t - .5f) * 2 * Mathf.PI);
+                radius*=fullness;
                 float flat = Mathf.Lerp(.95f, .68f, t);
                 for (int s = 0; s < Sides; s++)
                 {
@@ -78,6 +79,14 @@ namespace QuestResearch.Embodiment
                 }
             }
             mesh.vertices = vertices; mesh.normals = normals; mesh.RecalculateBounds();
+        }
+        public float MinimumClearance(SeatedParameters table)
+        {
+            float clearance=float.PositiveInfinity;
+            foreach(var point in vertices)
+                if(Mathf.Abs(point.x)<=table.tableWidth*.5f && point.z>=table.tableNearEdge && point.z<=table.tableNearEdge+table.tableDepth)
+                    clearance=Mathf.Min(clearance,point.y-table.tableHeight);
+            return clearance;
         }
         void OnDestroy() { if (mesh != null) Destroy(mesh); }
     }

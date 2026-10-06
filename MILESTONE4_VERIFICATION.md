@@ -39,3 +39,13 @@ User reported the table too low, disconnected-looking wrists and overly splayed 
 - Remaining wearer checks: button highlighting/clicking, once-only countdown alignment, tabletop height match, wrist appearance through motion, elbows at rest, and mirrored conditions. Table height remains uncalibrated; no physical measurement was invented.
 
 0.4.1 final APK installed and launched on Quest. The inspected startup log reached seated initialization and OpenXR Hands subscription; it showed the previously recorded AssetPackManager exception and no new control/mesh exceptions in that observation. Actual hand deformation, button operation and alignment still require wearer confirmation.
+
+## 0.4.2 table-fit feedback
+
+Read the existing device settings: tableHeight=0.879999876 m. The wearer said this table placement was good and clarified their real forearms were resting on glass when they saw virtual intersection. Preserved that saved height; it is not a verified physical measurement.
+
+Added 1.3x visual arm fullness away from the exact hand seam and a table-support estimate for the inferred elbow. Tests passed for fixed segment lengths across support weights 0/0.25/0.5/1, feasible height constraints and impossible-height rejection, alongside existing reflection, seam and button tests. Synthetic preview at an 88 cm table with supported arms was rendered and inspected. It is not a wearer test or measured hand pose.
+
+Added visible overlap indication and five-second geometric clearance diagnostics. No tracked wrist/joint offsets, pose clamping, or table changes were made to hide an intersection. Remaining hand surface mismatch may require explicit fit/calibration work.
+
+Final 0.4.2 (6) Android build and signature verification passed. APK SHA-256: `7bde04d474b9bd65a4cf281a7e741b93d5973ec9f1fade5ab13728fa9d09653b`. Wearer acceptance remains pending.

@@ -11,13 +11,15 @@ namespace QuestResearch.Embodiment
     {
         public float tableHeight=.74f,tableWidth=1.10f,tableDepth=.65f,tableNearEdge=.18f;
         public float shoulderWidth=.38f,shoulderDrop=.22f,upperArmLength=.30f,forearmLength=.26f;
+        public float armFullness=1.3f;
+        public bool tableSupportEnabled=true;
         public MovementCondition movementCondition = MovementCondition.Normal;
         public bool showSourceHand = true;
         public bool tableAlignmentConfirmed=false;
         public bool requestAlignment=false;
         public bool Valid()
         {
-            return Enum.IsDefined(typeof(MovementCondition), movementCondition) && Between(tableHeight,.45f,1.1f)&&Between(tableWidth,.6f,2f)&&Between(tableDepth,.35f,1.2f)
+            return Between(armFullness,.8f,1.8f) && Enum.IsDefined(typeof(MovementCondition), movementCondition) && Between(tableHeight,.45f,1.1f)&&Between(tableWidth,.6f,2f)&&Between(tableDepth,.35f,1.2f)
                 &&Between(tableNearEdge,.05f,.65f)&&Between(shoulderWidth,.25f,.6f)&&Between(shoulderDrop,.12f,.4f)
                 &&Between(upperArmLength,.18f,.45f)&&Between(forearmLength,.18f,.4f);
         }
@@ -35,6 +37,7 @@ namespace QuestResearch.Embodiment
         public bool Aligned { get; private set; }
         public float SeatedHeadHeight { get; private set; }
         public bool HeadTracked { get; private set; }
+        public string SurfaceFitWarning { get; set; } = "";
         public string Message { get; private set; }="Waiting for researcher alignment";
         public event Action Changed;
         string settingsPath;
@@ -76,7 +79,11 @@ namespace QuestResearch.Embodiment
         {
             try
             {
-                var candidate=JsonUtility.FromJson<SeatedParameters>(File.ReadAllText(settingsPath));
+                string json=File.ReadAllText(settingsPath);
+                var candidate=JsonUtility.FromJson<SeatedParameters>(json);
+                // Upgrade older files without losing the wearer's chosen table height.
+                if(candidate!=null && !json.Contains("\"armFullness\""))candidate.armFullness=1.3f;
+                if(candidate!=null && !json.Contains("\"tableSupportEnabled\""))candidate.tableSupportEnabled=true;
                 if(candidate==null||!candidate.Valid())throw new ArgumentException("Setup dimensions are outside supported ranges.");
                 bool requested=candidate.requestAlignment;
                 candidate.requestAlignment=false;

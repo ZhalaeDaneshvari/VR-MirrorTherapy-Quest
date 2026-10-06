@@ -40,8 +40,8 @@ public static class QuestMirrorSetup
         origin.Camera.GetComponentInChildren<TextMesh>(true).GetComponent<MeshRenderer>().enabled=false;
         EditorSceneManager.SaveScene(scene);
         PlayerSettings.productName = "Quest Movement Mirror";
-        PlayerSettings.bundleVersion = "0.4.1";
-        PlayerSettings.Android.bundleVersionCode = 5;
+        PlayerSettings.bundleVersion = "0.4.2";
+        PlayerSettings.Android.bundleVersionCode = 6;
         PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, AppId);
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
         AssetDatabase.SaveAssets();
@@ -143,6 +143,13 @@ public static class QuestMirrorSetup
         Require(SeatedArmMath.TryElbow(shoulder,wristPosition,.3f,.26f,SeatedArmMath.RestingElbowPole(true),out var tucked),"Resting IK failed.");
         SeatedArmMath.TryElbow(shoulder,wristPosition,.3f,.26f,new Vector3(-1,-.6f,-.3f),out var old);
         Require(Mathf.Abs(tucked.x-shoulder.x)<Mathf.Abs(old.x-shoulder.x),"Elbow did not move toward torso.");
+        foreach(float blend in new[]{0f,.25f,.5f,1f})
+        {
+            Require(SeatedArmMath.TrySupportedElbow(shoulder,new Vector3(-.19f,.90f,.35f),.3f,.26f,SeatedArmMath.RestingElbowPole(true),.92f,blend,out var supported),"Supported IK failed for reachable resting target.");
+            Require(Mathf.Abs(Vector3.Distance(shoulder,supported)-.3f)<.0001f && Mathf.Abs(Vector3.Distance(supported,new Vector3(-.19f,.90f,.35f))-.26f)<.0001f,"Supported IK changed limb length.");
+            if(blend==1)Require(supported.y>=.9199f,"Supported elbow remained below surface constraint.");
+        }
+        Require(!SeatedArmMath.TrySupportedElbow(shoulder,wristPosition,.3f,.26f,SeatedArmMath.RestingElbowPole(true),2f,1,out _),"Impossible surface fit was accepted.");
         foreach(string side in new[]{"Left","Right"})
         {
             var prefab=AssetDatabase.LoadAssetAtPath<RemappedHandMesh>(Generated+"/"+side+"DisplayedHand.prefab");
@@ -169,7 +176,7 @@ public static class QuestMirrorSetup
                 Near(armVertices[armVertices.Length-hand.WristSeamPoints.Length+i],wrist.TransformPoint(hand.WristSeamPoints[i]),"Arm/hand seam detached.");
             Object.DestroyImmediate(arm.gameObject);Object.DestroyImmediate(baked);Object.DestroyImmediate(space.gameObject);
         }
-        Debug.Log("[SetupFix] PASS: pinch debouncing, gaze hit tests, tucked elbow and deformed arm/hand seam positions.");
+        Debug.Log("[SetupFix] PASS: pinch debouncing, gaze hit tests, tucked elbow and deformed arm/hand seam positions and length-preserving table-supported IK.");
     }
 
     static void Require(bool pass, string message) { if (!pass) throw new BuildFailedException(message); }
@@ -267,7 +274,7 @@ public static class QuestMirrorSetup
         for (int i=0;i<pose.Joints.Length;i++)
         {
             pose.Valid[i]=mirrored.Valid[i]=true;
-            pose.Joints[i]=new Pose(new Vector3(-.19f,.80f,.35f)+inverse*(left.Joints[i].position-root), inverse*left.Joints[i].rotation);
+            pose.Joints[i]=new Pose(new Vector3(-.19f,.94f,.35f)+inverse*(left.Joints[i].position-root), inverse*left.Joints[i].rotation);
             mirrored.Joints[i]=MovementReflection.Reflect(pose.Joints[i],Pose.identity);
         }
         left.Apply(pose,space,true);right.Apply(mirrored,space,true);
@@ -278,10 +285,11 @@ public static class QuestMirrorSetup
             var target=side==0?pose:mirrored;
             var wristPose=target.Joints[XRHandJointID.Wrist.ToIndex()];
             if(!SeatedArmMath.TryElbow(shoulder,wristPose.position,.30f,.26f,SeatedArmMath.RestingElbowPole(side==0),out var elbow))throw new BuildFailedException("Preview IK failed.");
+            if(SeatedArmMath.TrySupportedElbow(shoulder,wristPose.position,.30f,.26f,SeatedArmMath.RestingElbowPole(side==0),.88f+.04f*1.3f,1,out var supported))elbow=supported;
             var arm=new GameObject("Preview arm").AddComponent<ContinuousArmSurface>();arm.Initialize(skin,(side==0?left:right).WristSeamPoints,(side==0?left:right).WristSeamNormals);
             arm.Apply(shoulder,elbow,wristPose.position,wristPose.rotation);
         }
-        var table=GameObject.CreatePrimitive(PrimitiveType.Cube);table.transform.position=new Vector3(0,.72f,.505f);table.transform.localScale=new Vector3(1.1f,.04f,.65f);
+        var table=GameObject.CreatePrimitive(PrimitiveType.Cube);table.transform.position=new Vector3(0,.86f,.505f);table.transform.localScale=new Vector3(1.1f,.04f,.65f);
         table.GetComponent<Renderer>().sharedMaterial=AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/SeatedTable.mat");
         var light=new GameObject("Preview light").AddComponent<Light>();light.type=LightType.Directional;light.transform.rotation=Quaternion.Euler(50,-25,0);light.intensity=.8f;
         RenderSettings.ambientLight=new Color(.65f,.65f,.65f);RenderSettings.skybox=null;

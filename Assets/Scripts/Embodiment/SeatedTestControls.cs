@@ -74,7 +74,7 @@ namespace QuestResearch.Embodiment
                 if(now>=alignAt){alignAt=-1;setup.Align();}
                 return;
             }
-            title.text=setup.Parameters.movementCondition+" / table "+(setup.Parameters.tableHeight*100).ToString("F0")+" cm\n"+setup.Message+"\n"+(setup.Parameters.tableAlignmentConfirmed?"Table confirmed":"Table uncalibrated");
+            title.text=setup.Parameters.movementCondition+" / table "+(setup.Parameters.tableHeight*100).ToString("F0")+" cm\n"+setup.Message+"\n"+(setup.SurfaceFitWarning.Length>0?setup.SurfaceFitWarning:setup.Parameters.tableAlignmentConfirmed?"Table confirmed":"Table uncalibrated");
             if(click && hovered==0)alignAt=now+3;
             if(click && hovered==1)setup.AdjustTableHeight(-.02f);
             if(click && hovered==2)setup.AdjustTableHeight(.02f);

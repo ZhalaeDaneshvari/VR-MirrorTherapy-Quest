@@ -119,3 +119,11 @@ VERIFICATION.md
 - `RemappedHandMesh.cs` and `ContinuousArmSurface.cs`: use matching deformed boundary positions/normals for the arm-hand join.
 - `SeatedArmMath.cs`: down/back seated elbow direction with modest outward bias.
 - `SetupButton*.mat`: simple unlit test-button materials, no additional UI/XR package.
+
+### M4 tabletop-fit follow-up
+
+- `SeatedParameters.armFullness` and `tableSupportEnabled`: explicit appearance/IK parameters; older settings migrate without resetting the table.
+- `SeatedArmMath.TrySupportedElbow`: length-preserving table-height constraint on inferred elbow position.
+- `ContinuousArmSurface.MinimumClearance`: diagnostic rendered-mesh clearance within table footprint.
+- `SeatedAvatarDisplay` and `SeatedTestControls`: support blending, clearance logs and visible fit warning.
+- Researcher CLI supports `--arm-fullness` and `--table-support`.

@@ -632,6 +632,8 @@ MonoBehaviour:
     shoulderDrop: 0.22
     upperArmLength: 0.3
     forearmLength: 0.26
+    armFullness: 1.3
+    tableSupportEnabled: 1
     movementCondition: 0
     showSourceHand: 1
     tableAlignmentConfirmed: 0

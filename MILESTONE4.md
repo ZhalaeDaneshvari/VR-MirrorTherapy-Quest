@@ -27,7 +27,7 @@ After cloning/checking out this branch, wait for package resolution, then use:
 
 Configure imports only the left/right hand models already supplied in **XR Hands 1.9.0**, resolves all 26 joint references at edit time, and creates display-only prefabs under ignored `Assets/GeneratedHands`. It reassigns generated prefab references in the M4 scene. Run Configure on a fresh clone before opening/testing the scene; missing generated prefabs before this step are expected. Raw Unity sample assets are not redistributed in GitHub; the reconstruction code, source, scene and package pins are committed. See `THIRD_PARTY_ASSETS.md`.
 
-Output: `Builds/QuestMovementMirror.apk`. App ID `org.mirrortherapy.questprototype.mirror`, name **Quest Movement Mirror**, version 0.4.1 (5). M1–M3 app IDs are unchanged. APKs/build caches are not source-controlled.
+Output: `Builds/QuestMovementMirror.apk`. App ID `org.mirrortherapy.questprototype.mirror`, name **Quest Movement Mirror**, version 0.4.2 (6). M1–M3 app IDs are unchanged. APKs/build caches are not source-controlled.
 
 ## Researcher workflow
 
@@ -90,3 +90,21 @@ These controls are for prototype testing; they are not the final participant/res
 Elbow IK now favours down/back beside the torso with a small outward bias. Elbows remain inferred, not measured. The hand model's closed wrist cap is removed in the generated asset; the arm ends at the actual boundary ring. Only that small ring is CPU-skinned with the same four bone weights as the hand renderer, so it follows the deformed hand edge without changing tracked wrist/finger poses. No pose smoothing or added tracking delay is used. Real tracking loss or provider jumps are still possible and must be distinguished from mesh seams.
 
 Re-test in Normal first: palm up/down, wrist flexion, open/closed fingers, hands at rest near the real table. Confirm the button highlights, one pinch makes one adjustment, held pinches do not repeat, and Realign captures once. Then repeat left-to-right and right-to-left tests.
+
+## 0.4.2: fuller arms and tabletop support estimate
+
+The wearer set the table to approximately **88 cm** and reported that this visual placement was good for the current setup. Their real forearms were resting on the glass when virtual wrists/arms appeared to enter the table. This is a user fit observation, not a measured table/floor calibration. The installed app preserves the saved height during its settings migration.
+
+- Arm fullness defaults to **1.3** times the previous cross-section radius away from the hand seam. The deformed wrist boundary remains exactly matched. This is an appearance parameter, not a participant measurement.
+- Near the tabletop, an optional support-aware IK estimate raises the elbow on the two-bone solution circle. Wrist targets and limb lengths remain unchanged. Support smoothly fades as the hand lifts or reaches the tabletop edge. This does not detect physical contact.
+- A support solution may require a different lateral elbow placement because the existing segment lengths remain fixed. If the configured arm cannot reach the required height, the free-space estimate is retained.
+- An **Arm/table overlap: fit check needed** warning appears for rendered arm/table penetration beyond 5 mm. Development logs report geometric clearance every five seconds while aligned. They do not measure physical touch or constitute a research dataset.
+- No automatic upward wrist offset, table-height change, tracked-pose smoothing, or hidden hand clamping was added. The generic hand mesh or tracked joint estimate may still put the wrist surface below the table; that needs an explicit fit/calibration check with the wearer.
+
+Researcher controls, if needed:
+
+    python3 Tools/seated_setup.py --arm-fullness 1.3
+    python3 Tools/seated_setup.py --table-support off
+    python3 Tools/seated_setup.py --table-support on
+
+Re-test after Realign, with the real forearms resting on the table. Check fullness, wrist seam, table overlap, and elbow comfort before mirrored conditions. Any remaining penetration must not be treated as resolved solely because IK/build tests passed.

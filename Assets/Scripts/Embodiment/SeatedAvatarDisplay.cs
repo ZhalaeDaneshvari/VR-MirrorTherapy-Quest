@@ -22,6 +22,8 @@ namespace QuestResearch.Embodiment
         int[] parents;
         bool ready;
         bool[] previousReach={true,true};
+        readonly float[] surfaceClearance={float.PositiveInfinity,float.PositiveInfinity};
+        double nextFitReport;
         public void Configure(MovementRemapper targets,SeatedSetup alignment,Transform space,Material skinMaterial,Material shirtMaterial,Material table)
         {mapping=targets;setup=alignment;trackingSpace=space;skin=skinMaterial;shirt=shirtMaterial;tableMaterial=table;}
         void Start()
@@ -88,6 +90,13 @@ namespace QuestResearch.Embodiment
                 tableLegs[i].localPosition=new Vector3(x,(p.tableHeight-.04f)*.5f,z);tableLegs[i].localScale=new Vector3(.04f,p.tableHeight-.04f,.04f);
             }
             Draw(0,mapping.Left,visible);Draw(1,mapping.Right,visible);
+            float minimum=Mathf.Min(surfaceClearance[0],surfaceClearance[1]);
+            setup.SurfaceFitWarning=minimum<-.005f?"Arm/table overlap: fit check needed":"";
+            if(visible && Time.realtimeSinceStartupAsDouble>=nextFitReport)
+            {
+                nextFitReport=Time.realtimeSinceStartupAsDouble+5;
+                Debug.Log($"[SurfaceFit] table={p.tableHeight:F3}m fullness={p.armFullness:F2} supportedIK={p.tableSupportEnabled} leftClearance={surfaceClearance[0]:F3}m rightClearance={surfaceClearance[1]:F3}m. Clearance is rendered geometry, not physical contact sensing.");
+            }
         }
         void Draw(int side,DisplayedHandPose hand,bool bodyVisible)
         {
@@ -128,6 +137,7 @@ namespace QuestResearch.Embodiment
         {
             int w = XRHandJointID.Wrist.ToIndex();
             bool reachable=false;
+            surfaceClearance[side]=float.PositiveInfinity;
             if(bodyVisible&&hand.Valid[w]&&(handMeshes[side]==null||handMeshes[side].Visible))
             {
                 var p=setup.Parameters;
@@ -135,12 +145,23 @@ namespace QuestResearch.Embodiment
                 Vector3 wrist=setup.BodyFrame.InverseTransformPoint(trackingSpace.TransformPoint(hand.Joints[w].position));
                 Vector3 pole=SeatedArmMath.RestingElbowPole(side==0);
                 reachable=SeatedArmMath.TryElbow(shoulder,wrist,p.upperArmLength,p.forearmLength,pole,out Vector3 elbow);
+                float aboveTable=wrist.y-p.tableHeight;
+                bool overTable=Mathf.Abs(wrist.x)<p.tableWidth*.5f && wrist.z>=p.tableNearEdge && wrist.z<=p.tableNearEdge+p.tableDepth;
+                if(reachable && p.tableSupportEnabled && overTable && aboveTable>-.03f && aboveTable<.16f)
+                {
+                    // Blend back to free-space IK as the wrist lifts. Never claim sensed contact.
+                    float support=1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(.07f,.16f,aboveTable));
+                    float edge=Mathf.Min(p.tableWidth*.5f-Mathf.Abs(wrist.x),Mathf.Min(wrist.z-p.tableNearEdge,p.tableNearEdge+p.tableDepth-wrist.z));
+                    support*=Mathf.SmoothStep(0,1,Mathf.Clamp01(edge/.05f));
+                    if(SeatedArmMath.TrySupportedElbow(shoulder,wrist,p.upperArmLength,p.forearmLength,pole,p.tableHeight+.04f*p.armFullness,support,out var supported))elbow=supported;
+                }
                 if(reachable)
                 {
                     if (armSurfaces[side] != null)
                     {
                         Quaternion wristRotation=Quaternion.Inverse(setup.BodyFrame.rotation)*trackingSpace.rotation*hand.Joints[w].rotation;
-                        armSurfaces[side].Apply(shoulder, elbow, wrist, wristRotation);
+                        armSurfaces[side].Apply(shoulder, elbow, wrist, wristRotation,p.armFullness);
+                        surfaceClearance[side]=armSurfaces[side].MinimumClearance(p);
                     }
                     else { Segment(upper[side],shoulder,elbow,.075f);Segment(forearm[side],elbow,wrist,.058f); }
                 }
