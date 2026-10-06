@@ -17,3 +17,11 @@
 ## Pending
 
 The full MILESTONE4.md acceptance checklist requires wearer testing: normal hand alignment, finger deformation, both mapping directions, body-centered orientation, single-shot seated alignment, source loss/recovery, table correspondence, comfort and sustained performance. Build success is not evidence of these outcomes. Automatic clinician-hand/contact sensing is not implemented.
+
+## Device startup
+
+Final APK installed and launched on the connected Quest 3. Logs reached seated settings initialization and OpenXR Hands subscription; no primitive-collider stripping errors appeared in the inspected process log. The existing Google Play AssetPackManager ClassNotFoundException still appears at startup; the app continues initializing, but that message remains unresolved.
+
+Researcher configuration files were delivered for a left-to-right/hidden-source check and then restored to Normal with source shown. No running-loop condition acknowledgement appeared during this observation; do not count file delivery as a wearer or condition-switch acceptance test. No alignment was automatically requested. The app awaits the user wearing it and explicitly aligning.
+
+Legacy working tree remained clean. Implementation and verification are pushed to the private modern repository on the M4 branch.
