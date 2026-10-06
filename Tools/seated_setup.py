@@ -55,6 +55,9 @@ def main():
                 path = pathlib.Path(tmp) / 'seated-setup.json'
                 path.write_text(json.dumps(data, indent=2) + '\n')
                 run('push', str(path), REMOTE + '.pending')
+                # ADB-created files otherwise deny the app write access when it
+                # consumes requestAlignment. Set permissions BEFORE publication.
+                run('shell', 'chmod', '666', REMOTE + '.pending')
                 run('shell', 'mv', REMOTE + '.pending', REMOTE)
             print('Settings delivered. Check the headset status for acceptance; delivery is not calibration verification.')
         print(json.dumps(data, indent=2))

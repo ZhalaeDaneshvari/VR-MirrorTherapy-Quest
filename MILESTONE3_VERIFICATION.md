@@ -11,3 +11,5 @@
 - Full seated alignment, table adjustment, arm appearance, occlusion, resume and performance acceptance remain pending wearer testing. This is not evidence of clinical suitability or automatic clinician-hand sensing.
 
 Corrected APK installed and launched on the connected Quest 3. Startup reached the seated settings initialization and OpenXR Hands subscription; the earlier primitive/collider errors did not recur in the inspected process log. Startup still logged a missing optional Google Play AssetPackManager class; the application continued starting, but this message is not yet resolved. A head-tracking-unavailable observation occurred while awaiting wearer testing. No calibration was triggered. Neither startup nor a successful APK build establishes visual alignment or tracking acceptance.
+
+First wearer alignment was accepted, but ADB-created settings denied app write access and repeatedly triggered alignment. Cleared the request and made the file writable; the app then rewrote its settings and errors stopped. Researcher tool now sets pending-file permissions before publishing it. A fresh single-shot alignment and visual table acceptance remain pending.
