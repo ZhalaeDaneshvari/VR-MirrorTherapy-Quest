@@ -51,3 +51,7 @@ Added visible overlap indication and five-second geometric clearance diagnostics
 Final 0.4.2 (6) Android build and signature verification passed. APK SHA-256: `7bde04d474b9bd65a4cf281a7e741b93d5973ec9f1fade5ab13728fa9d09653b`. Wearer acceptance remains pending.
 
 0.4.2 installed and launched. Device settings read back tableHeight=0.879999876 m (preserved), armFullness≈1.3 and tableSupportEnabled=true. Startup reached OpenXR Hands subscription with the existing AssetPackManager message; no new initialization exception appeared in that inspected log. No alignment was automatically triggered.
+
+Wearer rejected 0.4.2 fit: hands still visually merge/intersect with the table and arms bow outward excessively. This is a failed visual-fit test, despite passing transformation/geometry unit checks. Disabled tableSupportEnabled on the device and verified the saved 88 cm height remains unchanged. Generic assumed body dimensions and procedural arm fitting are not validated participant anatomy.
+
+Next technical investigation: assess Meta Movement SDK/Quest 3 inside-out upper-body tracking with a proper rigged upper-body avatar and explicit proportion calibration. Official reference checked: https://developers.meta.com/vr/documentation/unity/move-body-tracking/ . This supplies body-pose/retargeting functionality, not an automatic personalized arm-surface scan. No Meta SDK packages were installed during this investigation. Seated occlusion, glass-table contact and joint estimation still need validation; a static appearance scan alone would not solve them.
