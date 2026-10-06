@@ -1,6 +1,6 @@
 # Milestone 2 verification — 2026-10-06
 
-**Implementation and build verified. Quest installation and hand-tracking acceptance pending.**
+**Implementation, build, installation, and runtime data arrival verified. User visual hand-tracking acceptance pending.**
 
 ## Automatically verified
 
@@ -27,3 +27,12 @@ Logs: `/private/tmp/quest-m2-configure.log`, `/private/tmp/quest-m2-build.log` (
 ## Hardware evidence still required
 
 See README checklist: independent hand/wrist movement, finger articulation, left/right identity, controller-free behavior, occlusion/loss/recovery, pause/resume, source reporting, and visual alignment. The hand provider can estimate hidden joints; a valid pose is not proof of direct observation. No elbow or arm tracking is claimed.
+
+## Initial Quest runtime check — 2026-10-06
+
+- After USB debugging authorization was restored, ADB installation returned Success and the launch command succeeded. The M2 process was running when inspected.
+- Logs report subscription to `OpenXR Hands`, `subsystem=True`, and both hands reaching `Available 26/26 (Unobstructed)`, with increasing sample sequences.
+- The head startup observation was initially untracked; subsequent heartbeats report `headTracked=True`. Startup diagnostics report `displayRunning=True` and `origin=Floor`.
+- Availability changed during the observation interval, particularly on the right; both hands later returned to Available. A focus loss produced Suspended/zero valid joints, followed by renewed availability after focus returned.
+- No crash or XR_ERROR entry was returned by the scoped startup/error log filter. This is not a comprehensive performance or stability test.
+- Receipt of provider data does not establish correct visual alignment, finger motion, or controlled occlusion/recovery behavior. Those require the user's next headset checks.
