@@ -37,3 +37,5 @@ User reported the table too low, disconnected-looking wrists and overly splayed 
 - Rendered and inspected synthetic arm and control-panel previews. Corrected oversized text found in the first UI preview; final labels fit the buttons. These previews are not headset acceptance.
 - Final Unity Android build and APK signature verification passed. Version 0.4.1 (5), same mirror app ID. SHA-256: `ea7e060efd5674535992f2ea08034b79f7ed7bee8fea3cbfc123b3cdf13a5898`.
 - Remaining wearer checks: button highlighting/clicking, once-only countdown alignment, tabletop height match, wrist appearance through motion, elbows at rest, and mirrored conditions. Table height remains uncalibrated; no physical measurement was invented.
+
+0.4.1 final APK installed and launched on Quest. The inspected startup log reached seated initialization and OpenXR Hands subscription; it showed the previously recorded AssetPackManager exception and no new control/mesh exceptions in that observation. Actual hand deformation, button operation and alignment still require wearer confirmation.
