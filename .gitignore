@@ -14,3 +14,7 @@ UserSettings/
 .utmp/
 .vscode/
 *.slnx
+
+# Recreated by QuestMirrorSetup from the pinned Unity XR Hands package.
+Assets/GeneratedHands/
+Assets/GeneratedHands.meta

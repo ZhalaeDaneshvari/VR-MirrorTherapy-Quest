@@ -7,17 +7,24 @@ namespace QuestResearch.Embodiment
     // First-person upper body. Only hands/wrists come from tracking; shoulders and elbows are estimates.
     public sealed class SeatedAvatarDisplay : MonoBehaviour
     {
-        [SerializeField] NormalHandMapping mapping;
+        [SerializeField] MovementRemapper mapping;
         [SerializeField] SeatedSetup setup;
         [SerializeField] Transform trackingSpace;
         [SerializeField] Material skin,shirt,tableMaterial;
+        [SerializeField] RemappedHandMesh leftHandPrefab, rightHandPrefab;
+        readonly RemappedHandMesh[] handMeshes = new RemappedHandMesh[2];
+        readonly ContinuousArmSurface[] armSurfaces = new ContinuousArmSurface[2];
+        public void ConfigureMeshes(RemappedHandMesh left, RemappedHandMesh right)
+        { leftHandPrefab = left; rightHandPrefab = right; }
         Transform body,torso,tableTop;
         readonly Transform[] tableLegs=new Transform[4],upper=new Transform[2],forearm=new Transform[2],handRoots=new Transform[2],palms=new Transform[2];
         Transform[][] joints,bones;
         int[] parents;
         bool ready;
         bool[] previousReach={true,true};
-        public void Configure(NormalHandMapping targets,SeatedSetup alignment,Transform space,Material skinMaterial,Material shirtMaterial,Material table)
+        readonly float[] surfaceClearance={float.PositiveInfinity,float.PositiveInfinity};
+        double nextFitReport;
+        public void Configure(MovementRemapper targets,SeatedSetup alignment,Transform space,Material skinMaterial,Material shirtMaterial,Material table)
         {mapping=targets;setup=alignment;trackingSpace=space;skin=skinMaterial;shirt=shirtMaterial;tableMaterial=table;}
         void Start()
         {
@@ -36,6 +43,16 @@ namespace QuestResearch.Embodiment
             joints=new Transform[2][];bones=new Transform[2][];
             for(int side=0;side<2;side++)
             {
+                var prefab = side == 0 ? leftHandPrefab : rightHandPrefab;
+                if (prefab != null)
+                {
+                    handMeshes[side] = Instantiate(prefab, trackingSpace, false);
+                    armSurfaces[side] = new GameObject(side == 0 ? "Left continuous arm (IK)" : "Right continuous arm (IK)").AddComponent<ContinuousArmSurface>();
+                    armSurfaces[side].transform.SetParent(body, false);
+                    armSurfaces[side].Initialize(skin,handMeshes[side].WristSeamPoints,handMeshes[side].WristSeamNormals);
+                    handRoots[side] = handMeshes[side].transform;
+                    continue;
+                }
                 upper[side]=Part(side==0?"Left upper arm (IK)":"Right upper arm (IK)",PrimitiveType.Capsule,body,skin);
                 forearm[side]=Part(side==0?"Left forearm (IK)":"Right forearm (IK)",PrimitiveType.Capsule,body,skin);
                 handRoots[side]=new GameObject(side==0?"Displayed left hand":"Displayed right hand").transform;
@@ -73,10 +90,24 @@ namespace QuestResearch.Embodiment
                 tableLegs[i].localPosition=new Vector3(x,(p.tableHeight-.04f)*.5f,z);tableLegs[i].localScale=new Vector3(.04f,p.tableHeight-.04f,.04f);
             }
             Draw(0,mapping.Left,visible);Draw(1,mapping.Right,visible);
+            float minimum=Mathf.Min(surfaceClearance[0],surfaceClearance[1]);
+            setup.SurfaceFitWarning=minimum<-.005f?"Arm/table overlap: fit check needed":"";
+            if(visible && Time.realtimeSinceStartupAsDouble>=nextFitReport)
+            {
+                nextFitReport=Time.realtimeSinceStartupAsDouble+5;
+                Debug.Log($"[SurfaceFit] table={p.tableHeight:F3}m fullness={p.armFullness:F2} supportedIK={p.tableSupportEnabled} leftClearance={surfaceClearance[0]:F3}m rightClearance={surfaceClearance[1]:F3}m. Clearance is rendered geometry, not physical contact sensing.");
+            }
         }
         void Draw(int side,DisplayedHandPose hand,bool bodyVisible)
         {
             handRoots[side].gameObject.SetActive(setup.HeadTracked);
+            if (handMeshes[side] != null)
+                handMeshes[side].Apply(hand, trackingSpace, setup.HeadTracked);
+            else DrawPrimitiveHand(side, hand);
+            DrawArm(side, hand, bodyVisible);
+        }
+        void DrawPrimitiveHand(int side, DisplayedHandPose hand)
+        {
             for(int i=0;i<hand.Joints.Length;i++)
             {
                 bool valid=hand.Valid[i];joints[side][i].gameObject.SetActive(valid);
@@ -101,19 +132,44 @@ namespace QuestResearch.Embodiment
                 }
                 else palms[side].gameObject.SetActive(false);
             }
+        }
+        void DrawArm(int side, DisplayedHandPose hand, bool bodyVisible)
+        {
+            int w = XRHandJointID.Wrist.ToIndex();
             bool reachable=false;
-            if(bodyVisible&&hand.Valid[w])
+            surfaceClearance[side]=float.PositiveInfinity;
+            if(bodyVisible&&hand.Valid[w]&&(handMeshes[side]==null||handMeshes[side].Visible))
             {
                 var p=setup.Parameters;
                 Vector3 shoulder=new Vector3((side==0?-1:1)*p.shoulderWidth*.5f,setup.SeatedHeadHeight-p.shoulderDrop,-.07f);
                 Vector3 wrist=setup.BodyFrame.InverseTransformPoint(trackingSpace.TransformPoint(hand.Joints[w].position));
-                Vector3 pole=new Vector3(side==0?-1:1,-.6f,-.3f);
+                Vector3 pole=SeatedArmMath.RestingElbowPole(side==0);
                 reachable=SeatedArmMath.TryElbow(shoulder,wrist,p.upperArmLength,p.forearmLength,pole,out Vector3 elbow);
-                if(reachable){Segment(upper[side],shoulder,elbow,.075f);Segment(forearm[side],elbow,wrist,.058f);}
+                float aboveTable=wrist.y-p.tableHeight;
+                bool overTable=Mathf.Abs(wrist.x)<p.tableWidth*.5f && wrist.z>=p.tableNearEdge && wrist.z<=p.tableNearEdge+p.tableDepth;
+                if(reachable && p.tableSupportEnabled && overTable && aboveTable>-.03f && aboveTable<.16f)
+                {
+                    // Blend back to free-space IK as the wrist lifts. Never claim sensed contact.
+                    float support=1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(.07f,.16f,aboveTable));
+                    float edge=Mathf.Min(p.tableWidth*.5f-Mathf.Abs(wrist.x),Mathf.Min(wrist.z-p.tableNearEdge,p.tableNearEdge+p.tableDepth-wrist.z));
+                    support*=Mathf.SmoothStep(0,1,Mathf.Clamp01(edge/.05f));
+                    if(SeatedArmMath.TrySupportedElbow(shoulder,wrist,p.upperArmLength,p.forearmLength,pole,p.tableHeight+.04f*p.armFullness,support,out var supported))elbow=supported;
+                }
+                if(reachable)
+                {
+                    if (armSurfaces[side] != null)
+                    {
+                        Quaternion wristRotation=Quaternion.Inverse(setup.BodyFrame.rotation)*trackingSpace.rotation*hand.Joints[w].rotation;
+                        armSurfaces[side].Apply(shoulder, elbow, wrist, wristRotation,p.armFullness);
+                        surfaceClearance[side]=armSurfaces[side].MinimumClearance(p);
+                    }
+                    else { Segment(upper[side],shoulder,elbow,.075f);Segment(forearm[side],elbow,wrist,.058f); }
+                }
                 if(reachable!=previousReach[side])Debug.Log($"[Seated] {(side==0?"Left":"Right")} arm reachable={reachable}; hand remains at tracked position. Adjust estimated body dimensions if needed.");
                 previousReach[side]=reachable;
             }
-            upper[side].gameObject.SetActive(reachable);forearm[side].gameObject.SetActive(reachable);
+            if (armSurfaces[side] != null) armSurfaces[side].gameObject.SetActive(reachable);
+            else { upper[side].gameObject.SetActive(reachable);forearm[side].gameObject.SetActive(reachable); }
         }
         static void Segment(Transform segment,Vector3 from,Vector3 to,float diameter)
         {segment.localPosition=(from+to)*.5f;segment.localRotation=Quaternion.FromToRotation(Vector3.up,to-from);segment.localScale=new Vector3(diameter,Vector3.Distance(from,to)*.5f,diameter);}

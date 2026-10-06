@@ -99,3 +99,31 @@ VERIFICATION.md
 - `Assets/Scenes/QuestSeatedEmbodiment.unity`, `Assets/Materials/Seated*.mat`: minimal seated scene and materials.
 - `Tools/seated_setup.py`: researcher-side ADB settings and explicit alignment command.
 - `MILESTONE3.md`: setup and pending hardware acceptance checklist.
+
+## Milestone 4 additions/changes
+
+- `MovementRemapper.cs` replaces `NormalHandMapping.cs`: independent output poses, pure body-frame reflection math, both mapping directions and source visibility.
+- `RemappedHandMesh.cs`: serialized anatomical joint references driven only by displayed poses.
+- `ContinuousArmSurface.cs`: smooth tapered IK arm geometry.
+- `SeatedAvatarDisplay.cs`: optional skinned hands/continuous arms, retains primitive fallback for older scene configuration.
+- `SeatedSetup.cs`: condition configuration and single-consumption file handling.
+- `Assets/Editor/QuestMirrorSetup.cs`: package model reconstruction, M4 scene/build, reflection checks and synthetic preview.
+- `Assets/Scenes/QuestMovementMirror.unity`: isolated build scene.
+- `Tools/seated_setup.py`: M3/M4 app selector, condition and source visibility controls.
+- `MILESTONE4.md`, `THIRD_PARTY_ASSETS.md`: usage, limitations, asset provenance.
+
+### M4 headset feedback fixes
+
+- `SeatedTestControls.cs`: head-gaze/physical-pinch test buttons, delayed Realign, height adjustment and release-to-arm pinch latch.
+- `Assets/Editor/HandWristSeamBuilder.cs`: remove generated hand wrist caps, derive boundary rings and regenerate locally modified hand meshes.
+- `RemappedHandMesh.cs` and `ContinuousArmSurface.cs`: use matching deformed boundary positions/normals for the arm-hand join.
+- `SeatedArmMath.cs`: down/back seated elbow direction with modest outward bias.
+- `SetupButton*.mat`: simple unlit test-button materials, no additional UI/XR package.
+
+### M4 tabletop-fit follow-up
+
+- `SeatedParameters.armFullness` and `tableSupportEnabled`: explicit appearance/IK parameters; older settings migrate without resetting the table.
+- `SeatedArmMath.TrySupportedElbow`: length-preserving table-height constraint on inferred elbow position.
+- `ContinuousArmSurface.MinimumClearance`: diagnostic rendered-mesh clearance within table footprint.
+- `SeatedAvatarDisplay` and `SeatedTestControls`: support blending, clearance logs and visible fit warning.
+- Researcher CLI supports `--arm-fullness` and `--table-support`.
