@@ -1,146 +1,86 @@
-# Quest head-tracking bootstrap — Milestone 1
+# Current branch: Milestone 3 — seated embodiment
 
-Status: implementation/build verification is recorded in `VERIFICATION.md`. Quest hardware acceptance is **pending** until the researcher runs the checklist below. Do not start Milestone 2 on the strength of a successful build alone.
+See [MILESTONE3.md](MILESTONE3.md) for setup, adjustable table controls, limitations, and headset tests. Automatic clinician-hand tracking is required future work and is not implemented here.
 
-For a headset-free class presentation, follow [CLASS_DEMO.md](CLASS_DEMO.md). This shows the existing editor environment without claiming hardware verification.
+---
 
-## Scope and location
+# Milestone 2 — controller-free Quest 3 hands
 
-This is an independent project at `/Users/zhalaedaneshvari/VR-MirrorTherapy-Quest`.
-The legacy `/Users/zhalaedaneshvari/VR-MirrorTherapy` repository is unchanged and tagged `legacy-baseline-2019.4.14f1` at `09a13524e945ef211d93f11402a095ef52016001`.
+**Status: hardware acceptance pending.** This branch adds a diagnostic hand-tracking scene to the tested Milestone 1 head-tracking foundation. No avatar, arm IK, mirroring, touch, gestures, or research recorder is included.
 
-Only head tracking and a fixed reference environment are implemented. There are no hand-tracking, avatar, IK, mirroring, touch, experiment-control, or research-recording systems. Do not import legacy Oculus assets here.
+## Where this work lives
 
-## Open in Unity
+- Branch: `codex/milestone-2-hands`, based on `codex/milestone-1`.
+- Working folder: `/Users/zhalaedaneshvari/VR-MirrorTherapy-Quest-Hands`.
+- This is a Git worktree of the modern repository, not a fork of the legacy project. The original modern folder remains on the class-demo branch.
+- Legacy `/Users/zhalaedaneshvari/VR-MirrorTherapy` remains untouched.
+- [Milestone 1 headset observations](MILESTONE1_HARDWARE_TEST.md) and [original setup instructions](MILESTONE1.md).
 
-1. Unity Hub → Projects → Add → Add project from disk.
-2. Select `/Users/zhalaedaneshvari/VR-MirrorTherapy-Quest` (not the legacy directory).
-3. Select **Unity 6000.6.2f1, Apple Silicon** and open it. Keep this exact editor version for the checkpoint.
-4. Let packages import. Do not accept an editor upgrade or install optional XR samples.
-5. In Project, double-click `Assets/Scenes/QuestBootstrap.unity`.
-6. Open File → Build Profiles. Activate **Android** if it is not already active. This project uses the Android platform with Meta Quest Support enabled in OpenXR; a separate Meta Quest profile is not needed.
-7. Run **Quest Prototype → Validate Milestone 1**. The Console should report zero OpenXR issues.
+## What you should see
 
-No XR setup is intended to be performed manually. If Unity asks about input handling, choose the new Input System and restart; the saved project already specifies it. In Unity → Settings → External Tools, use SDK, NDK, JDK and Gradle installed with this editor. Android Build Support, Android SDK & NDK Tools, and OpenJDK are required.
+The same floor and blocks, plus cyan LEFT-hand joints and orange RIGHT-hand joints. Each skeleton includes the wrist, palm, and finger joints. A small head-relative text display reports each hand's availability and valid joint count. It is a diagnostic representation, not a realistic hand mesh.
 
-Editor Play mode on this Mac is a scene preview, not a substitute for a standalone Quest test. No desktop XR loader is enabled.
+Tracked input snapshots are separate from displayed transforms. This milestone uses a direct 1:1 display in the XR Origin's Camera Offset space. The skeleton is never used as the authoritative physical input.
 
-## Package rationale
+## Open / validate / build
 
-Exact direct registry dependencies:
+1. Unity Hub → Projects → Add project from disk → select `VR-MirrorTherapy-Quest-Hands`.
+2. Open with **Unity 6000.6.2f1 Apple Silicon**, with its Android Build Support, SDK, NDK, and OpenJDK modules.
+3. Open `Assets/Scenes/QuestHandsBootstrap.unity`.
+4. File → Build Profiles → Android. The only enabled build scene should be QuestHandsBootstrap.
+5. Quest Prototype → Milestone 2 → Validate Hands.
+6. Quest Prototype → Milestone 2 → Build Hands APK builds `Builds/QuestHandTracking.apk`; alternatively use Build And Run with the connected Quest.
 
-| Package | Version | Purpose |
-|---|---|---|
-| OpenXR | 1.18.0 | XR runtime, head device, stereo rendering, Meta Quest Support feature |
-| Input System | 1.20.0 | Head position/rotation/tracking-state actions and standard Tracked Pose Driver |
-| XR Core Utilities | 2.6.0 | Standard XR Origin and floor-origin handling |
-| XR Management | 4.7.0 | Initialize the Android OpenXR loader at startup |
+The separately named app **Quest Hand Tracking Test** uses `org.mirrortherapy.questprototype.hands`, version 0.2.0/code 2. The installed **Quest Head Tracking Test** is preserved. Do not use the old Milestone 1 build menu from this worktree: this branch's project configuration belongs to M2.
 
-OpenXR/XR Management also resolve **XR Legacy Input Helpers 3.0.1**. This is a required Unity dependency, not Oculus Integration, and is not used for custom tracking code. Built-in audio, physics, and XR modules plus their transitive engine dependencies are included. Audio supplies the standard camera AudioListener; physics is also required by the XR dependency chain. No physics simulation or sound content is authored.
+Mac Play mode is not a headset hand-tracking test; no simulated inputs are installed.
 
-`Packages/manifest.json` and `Packages/packages-lock.json` are both included for version control. No XR Hands, XR Interaction Toolkit, Animation Rigging, Meta XR bundle, or Unity Meta OpenXR extension package is installed. The Meta Quest Support feature used here ships inside the OpenXR package itself.
+## Minimal package/configuration changes
 
-## Configuration
+- Added and pinned `com.unity.xr.hands` **1.9.0**, the released XR Hands package for Unity 6000.6.
+- Retained OpenXR 1.18.0, Input System 1.20.0, XR Core Utilities 2.6.0, XR Management 4.7.0.
+- XR Hands resolves Collections 6.6.0, Mathematics 1.4.0, Burst 2.0.0, Mono Cecil 1.11.6, and associated Unity test tooling transitively. Exact resolutions are in `Packages/packages-lock.json`; these are not separately chosen interaction frameworks.
+- Enabled **Hand Tracking Subsystem** with automatic startup.
+- Enabled **Hand Tracking Data Source** with tracked-hand preference for both sides. This is an optional OpenXR extension in the same package, not an added SDK. A preference is not a guarantee; reported controller-derived poses are rejected. If source reporting is unsupported, the display explicitly says `source not reported` and controller-free use must be checked on the headset.
+- No Meta Aim, XR Interaction Toolkit, Unity Meta OpenXR, Meta XR SDK bundle, legacy Oculus Integration, or sample content imported.
+- Retained Android IL2CPP/ARM64/Vulkan, minimum API 32/target 34, floor-origin head tracking.
+- The XR Hands package build processor adds `com.oculus.permission.HAND_TRACKING` and the optional `oculus.software.handtracking` feature. It does not request raw camera images.
 
-- Editor: 6000.6.2f1; built-in rendering pipeline; unlit reference materials.
-- Android APK; IL2CPP; ARM64 only; minimum Android API 32; target API 34.
-- Application ID: `org.mirrortherapy.questprototype`.
-- Display name: **Quest Head Tracking Test**, version 0.1.0 (code 1).
-- GameActivity; Landscape Left; Vulkan; Linear colour; single-pass instanced/multiview; no depth submission.
-- OpenXR initialized on startup. Meta Quest Support enabled, Quest 3 device selected.
-- Oculus Touch interaction profile enabled to satisfy the provider's profile validation. It does not require connected controllers. There are no controller objects, controller action bindings, or menus in the application.
-- XR Origin requests Floor mode, with a 1.6 m device-origin fallback. A fallback is **not** a passed floor calibration test: diagnostics warn unless Floor is reported.
-- Head camera follows `<XRHMD>/centerEyePosition`, `centerEyeRotation`, and `trackingState`, with Update and BeforeRender updates.
-- No locomotion or artificial camera movement. Camera clips at 0.05–30 m.
-- A 10 m square visual floor with a 1 m grid, and blue/orange/green reference blocks at different depths. These virtual objects do not indicate safe physical walking space.
-- The build helper creates a Development APK for diagnostic logs, using local debug signing. No store publishing, entitlement integration, or Meta App ID is involved.
+## Tracking behavior and limits
 
-OpenXR generates the VR/headtracking manifest declarations. No camera, microphone, hand/body-tracking, or storage permission is intentionally requested. Any manifest permissions actually present are listed in `VERIFICATION.md`.
+- Reads OpenXR `XRHandSubsystem` Dynamic and BeforeRender updates into preallocated, reusable snapshots.
+- Joint poses use XR tracking-origin coordinates in metres, already converted to Unity conventions by the provider. Renderer children live under Camera Offset so origin/floor offsets apply exactly once.
+- `isTracked`, per-joint `TryGetPose`, update flags, update phase, receipt time, and sequence are handled explicitly. Valid joint count is **not** a confidence score or proof of direct optical observation. The runtime may estimate occluded finger poses.
+- Reported tracking loss, invalid joints, app pause/focus loss, or reported controller-derived data hides the corresponding geometry. A bone is shown only when both endpoint poses are valid.
+- A 0.25-second monotonic receipt-time watchdog hides retained poses if updates stop. This is a diagnostic stale-data limit, not a validated clinical threshold. Data is never deliberately frozen indefinitely or filled with simulated movement.
+- Briefly inferred poses supplied as valid by the runtime cannot be independently identified as occluded by this application.
+- No elbow, shoulder, full-arm or body measurement is supplied by this milestone.
+- Diagnostics log state changes and a five-second heartbeat. These are not crash-safe scientific research data or sensor-exposure timestamps.
 
-## Connect Quest 3 to the Mac
+## Headset test — one step at a time
 
-1. Complete normal headset setup and pair it with the **Meta Horizon mobile app** on your phone.
-2. If needed, complete Meta developer-account verification and create/join a developer organization using Meta's official device-setup instructions linked below.
-3. In the phone app: Devices → your Quest 3 → Headset Settings → Developer Mode → enable. Navigation labels can vary by app version; use the official guide if the switch is absent.
-4. Restart the headset if requested. Set up its normal boundary and floor level.
-5. Connect it directly to your Mac using a **USB data cable**, not a charge-only cable.
-6. Put on the headset. At **Allow USB debugging?**, select **Always allow from this computer**, then **Allow**. A file-access prompt is separate from USB debugging.
-7. Do not start Quest Link/Air Link: this is a native Android APK running on the headset.
+Use a clear, normally lit space and keep the headset boundary enabled. Ensure hand tracking is enabled in the headset's system settings. Set controllers down and let the headset switch to hands.
 
-Optional connection check in Terminal:
+1. Confirm the environment and text appear.
+2. Hold both bare hands comfortably in front of the headset: cyan left and orange right skeletons should appear in corresponding locations.
+3. Move each hand independently and turn each wrist; open and close fingers. Verify there is no left/right swap or obvious offset.
+4. Move one hand out of view, then bring it back. Observe the status and disappearance/recovery. The runtime may briefly estimate a hidden hand; note how long this persists.
+5. Briefly overlap hands or bring a hand near the forearm/body. Note jitter, incorrect fingers, or tracking loss; do not interpret these as automatically solvable by IK.
+6. Remove/re-wear the headset and return from the system menu. Confirm head and hands recover without stale frozen geometry.
+7. Review `[QuestHands]` logs. Confirm subsystem running, changing sample sequences, and available joints. Record whether source is reported as Unobstructed or not reported.
 
-```sh
-/Applications/Unity/Hub/Editor/6000.6.2f1/PlaybackEngines/AndroidPlayer/SDK/platform-tools/adb devices
-```
+Do not declare M2 complete from build validation alone. Report which items passed and any loss/recovery issues. Avatar embodiment is the next separate milestone after reliable hand input is established.
 
-Expect one serial with status `device`. `unauthorized` means accept the debugging prompt inside the headset. An empty list usually means cable/port/developer-mode setup. No Windows ADB driver is required on macOS.
+## Files
 
-## Build and install
+- `Assets/Scripts/Hands/HandTrackingSource.cs`: provider snapshots, availability, lifecycle, freshness, and source reporting.
+- `Assets/Scripts/Hands/HandSkeletonDisplay.cs`: direct diagnostic rendering from valid snapshots.
+- `Assets/Scripts/Hands/HandTrackingStatus.cs`: visible status and bounded heartbeat logging.
+- `Assets/Editor/QuestHandsSetup.cs`: reproducible setup, validation, and APK build.
+- `Assets/Scenes/QuestHandsBootstrap.unity`, two hand materials, and their Unity metadata.
+- XR settings, Android identity/build scene, package manifest and lock updated for M2.
 
-### Unity route
+## References
 
-1. Open this project and `QuestBootstrap` as described above.
-2. File → Build Profiles → Android → Switch Platform if necessary.
-3. Confirm the only enabled scene is `Assets/Scenes/QuestBootstrap.unity`.
-4. Select your connected Quest under **Run Device**; use Refresh if needed.
-5. Enable **Development Build** for this initial diagnostic test.
-6. Choose **Build And Run**, saving to `Builds/QuestHeadTracking.apk` inside this project.
-7. Wait for build and installation to finish, then wear the headset.
-
-The **Quest Prototype → Build Milestone 1 APK** menu creates the same APK without installing it. Do not confuse that menu with Build And Run.
-
-### Install the already-built APK (if supplied)
-
-```sh
-/Applications/Unity/Hub/Editor/6000.6.2f1/PlaybackEngines/AndroidPlayer/SDK/platform-tools/adb install -r /Users/zhalaedaneshvari/VR-MirrorTherapy-Quest/Builds/QuestHeadTracking.apk
-/Applications/Unity/Hub/Editor/6000.6.2f1/PlaybackEngines/AndroidPlayer/SDK/platform-tools/adb shell am start -n org.mirrortherapy.questprototype/com.unity3d.player.UnityPlayerGameActivity
-```
-
-The OS may need a system interaction to dismiss a prompt. The application itself has no controller gate. You can relaunch it from the headset's app library under **Unknown Sources → Quest Head Tracking Test** (the library filter wording may change).
-
-## Quest acceptance checklist — researcher must perform
-
-Use a clear physical space and small comfortable movements; leave the headset's safety boundary enabled. Do not walk toward the virtual blocks.
-
-- [ ] APK installation succeeds.
-- [ ] App launches into immersive VR rather than a flat Android panel or black screen.
-- [ ] Put controllers down before launching with Build And Run/ADB. The floor and reference blocks appear without pressing an application button.
-- [ ] Rotate head left/right, up/down, and tilt gently: the world remains fixed rather than rotating with the head.
-- [ ] Lean sideways 10–20 cm: the nearer block shifts relative to farther blocks (parallax).
-- [ ] Lean forward/back and raise/lower the head: viewpoint changes accordingly; this must not be rotation-only tracking.
-- [ ] Floor remains stable and reasonably aligned with the real floor; blocks do not swim or follow the head.
-- [ ] Stay in the app for several minutes: no obvious flicker, stereo mismatch, repeated judder, or black frames.
-- [ ] Briefly remove and re-wear the headset: rendering and head tracking resume. Note any OS prompt or change in origin.
-- [ ] Open the system menu and return; tracking resumes without an application-controller requirement.
-- [ ] Review device logs for crashes, OpenXR failures, and the diagnostic line reporting `displayRunning=True`, `headTracked=True`, `origin=Floor` after startup.
-
-To capture logs immediately after testing (Ctrl+C stops a live capture):
-
-```sh
-/Applications/Unity/Hub/Editor/6000.6.2f1/PlaybackEngines/AndroidPlayer/SDK/platform-tools/adb logcat -d > /private/tmp/quest-m1-device.log
-```
-
-Search that file for `[QuestBootstrap]`, `OpenXR`, `FATAL EXCEPTION`, and `AndroidRuntime`. Report the observed behavior plus relevant error lines; do not treat every OS log warning as an app failure. This script provides startup diagnostics and lifecycle notices only, not a complete record of every tracking interruption.
-
-Report: headset OS version, APK used, test date, pass/fail for each item, whether controllers were absent, and any errors. Milestone 1 hardware acceptance remains pending until this report.
-
-## Rebuild from command line
-
-Close this project's Editor first:
-
-```sh
-/Applications/Unity/Hub/Editor/6000.6.2f1/Unity.app/Contents/MacOS/Unity -batchmode -nographics -quit -projectPath /Users/zhalaedaneshvari/VR-MirrorTherapy-Quest -buildTarget Android -executeMethod QuestProjectSetup.Build -logFile /private/tmp/quest-m1-build.log
-```
-
-`QuestProjectSetup.Configure` documents how settings and the initial scene were generated. It only creates the scene if missing; do not delete the authored scene to regenerate it casually. Ordinary development should use the saved scene/settings, Validate, and Build.
-
-## Authoritative references checked 2026-09-23
-
-- [Unity 6.6 OpenXR compatibility](https://docs.unity3d.com/6000.6/Documentation/Manual/com.unity.xr.openxr.html): 1.18.0 released.
-- [Unity 6.6 XR Hands compatibility](https://docs.unity3d.com/6000.6/Documentation/Manual/com.unity.xr.hands.html): 1.9.0 released; not installed in this milestone.
-- [Meta Unity setup](https://developers.meta.com/horizon/documentation/unity/unity-project-setup/): supported editor generation and Android modules.
-- [OpenXR Meta Quest Support](https://docs.unity3d.com/Packages/com.unity.xr.openxr@1.18/manual/features/metaquest.html).
-- [Meta API 34 targeting update](https://developers.meta.com/horizon/blog/meta-quest-apps-android-14-march-1/).
-- [Meta device setup](https://developers.meta.com/horizon/documentation/native/android/mobile-device-setup/).
-
-Unity 6.6 was selected explicitly at the user's request. Documentation compatibility and successful build checks do not establish Quest runtime correctness.
+- [Unity 6.6 XR Hands compatibility](https://docs.unity.com/en-us/engine/6000.6/manual/packages-list/packages-all/pack-safe/com-unity-xr-hands).
+- XR Hands 1.9.0 bundled documentation: `Documentation~/openxr-features/handtracking.md`, `handtrackingdatasource.md`, and `Documentation~/hand-data/xr-hand-access-data.md`. Package source and docs were inspected directly after installation.

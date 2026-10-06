@@ -1,10 +1,12 @@
-# Milestone 1 complete source file inventory
+# Milestone 2 source inventory
 
-Every file below is new in this independent repository. No legacy application file was modified. Unity-generated Assets metadata and ProjectSettings are retained for reproducibility.
+This worktree is based on the Milestone 1 branch. The following files include Unity metadata and generated project settings retained for reproducibility. Build outputs and caches are excluded.
 
 ```text
 .gitignore
 Assets/Editor.meta
+Assets/Editor/QuestHandsSetup.cs
+Assets/Editor/QuestHandsSetup.cs.meta
 Assets/Editor/QuestProjectSetup.cs
 Assets/Editor/QuestProjectSetup.cs.meta
 Assets/Materials.meta
@@ -16,12 +18,26 @@ Assets/Materials/FloorGrid.mat
 Assets/Materials/FloorGrid.mat.meta
 Assets/Materials/Green.mat
 Assets/Materials/Green.mat.meta
+Assets/Materials/LeftHandCyan.mat
+Assets/Materials/LeftHandCyan.mat.meta
 Assets/Materials/Orange.mat
 Assets/Materials/Orange.mat.meta
+Assets/Materials/RightHandOrange.mat
+Assets/Materials/RightHandOrange.mat.meta
+Assets/Resources.meta
 Assets/Scenes.meta
 Assets/Scenes/QuestBootstrap.unity
 Assets/Scenes/QuestBootstrap.unity.meta
+Assets/Scenes/QuestHandsBootstrap.unity
+Assets/Scenes/QuestHandsBootstrap.unity.meta
 Assets/Scripts.meta
+Assets/Scripts/Hands.meta
+Assets/Scripts/Hands/HandSkeletonDisplay.cs
+Assets/Scripts/Hands/HandSkeletonDisplay.cs.meta
+Assets/Scripts/Hands/HandTrackingSource.cs
+Assets/Scripts/Hands/HandTrackingSource.cs.meta
+Assets/Scripts/Hands/HandTrackingStatus.cs
+Assets/Scripts/Hands/HandTrackingStatus.cs.meta
 Assets/Scripts/HeadTrackingDiagnostics.cs
 Assets/Scripts/HeadTrackingDiagnostics.cs.meta
 Assets/XR 1.meta
@@ -39,6 +55,9 @@ Assets/XR/XRGeneralSettingsPerBuildTarget.asset
 Assets/XR/XRGeneralSettingsPerBuildTarget.asset.meta
 CLASS_DEMO.md
 FILES.md
+MILESTONE1.md
+MILESTONE1_HARDWARE_TEST.md
+MILESTONE2_VERIFICATION.md
 Packages/manifest.json
 Packages/packages-lock.json
 ProjectSettings/AudioManager.asset
@@ -69,4 +88,14 @@ README.md
 VERIFICATION.md
 ```
 
-Generated local outputs excluded from Git: `Builds/QuestHeadTracking.apk`, `Library/`, `Logs/`, `Temp/`, `UserSettings/`, `.utmp/` native build intermediates, and IDE caches (`.vscode/`, `*.slnx`). These are rebuildable outputs, not source changes.
+## Milestone 3 additions
+
+- `Assets/Scripts/Embodiment/NormalHandMapping.cs`: separate displayed hand-pose copies, normal mapping only.
+- `Assets/Scripts/Embodiment/SeatedSetup.cs`: validated dimensions, explicit fixed body frame and table alignment status.
+- `Assets/Scripts/Embodiment/SeatedArmMath.cs`: analytic fixed-length two-segment IK with unreachable-target rejection.
+- `Assets/Scripts/Embodiment/SeatedAvatarDisplay.cs`: procedural first-person upper body, tracked hand shapes and adjustable table.
+- `Assets/Scripts/Embodiment/link.xml`: preserves primitive collider types requested internally by Unity during runtime shape creation.
+- `Assets/Editor/QuestSeatedSetup.cs`: scene configuration, validation and dedicated APK build.
+- `Assets/Scenes/QuestSeatedEmbodiment.unity`, `Assets/Materials/Seated*.mat`: minimal seated scene and materials.
+- `Tools/seated_setup.py`: researcher-side ADB settings and explicit alignment command.
+- `MILESTONE3.md`: setup and pending hardware acceptance checklist.

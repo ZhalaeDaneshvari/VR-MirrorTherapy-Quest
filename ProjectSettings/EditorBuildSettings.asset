@@ -6,8 +6,8 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/QuestBootstrap.unity
-    guid: df5c7138475a043fc8b0a24cdfbf228f
+    path: Assets/Scenes/QuestSeatedEmbodiment.unity
+    guid: 379f509f4e0cc4680a7876d5ccb816fe
   m_configObjects:
     com.unity.xr.management.loader_settings: {fileID: 11400000, guid: 9cb1bac0a0d144c80a3ec4daa04aa835, type: 2}
     com.unity.xr.openxr.settings4: {fileID: 11400000, guid: 8b9eb8408684040df9822f22b5bf1700, type: 2}
