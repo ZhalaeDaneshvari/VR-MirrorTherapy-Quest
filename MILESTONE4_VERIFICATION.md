@@ -49,3 +49,5 @@ Added 1.3x visual arm fullness away from the exact hand seam and a table-support
 Added visible overlap indication and five-second geometric clearance diagnostics. No tracked wrist/joint offsets, pose clamping, or table changes were made to hide an intersection. Remaining hand surface mismatch may require explicit fit/calibration work.
 
 Final 0.4.2 (6) Android build and signature verification passed. APK SHA-256: `7bde04d474b9bd65a4cf281a7e741b93d5973ec9f1fade5ab13728fa9d09653b`. Wearer acceptance remains pending.
+
+0.4.2 installed and launched. Device settings read back tableHeight=0.879999876 m (preserved), armFullness≈1.3 and tableSupportEnabled=true. Startup reached OpenXR Hands subscription with the existing AssetPackManager message; no new initialization exception appeared in that inspected log. No alignment was automatically triggered.
