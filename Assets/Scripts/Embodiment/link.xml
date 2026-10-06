@@ -1,0 +1,9 @@
+<linker>
+  <!-- CreatePrimitive internally requests these collider types before we remove
+       them. Preserve them for IL2CPP even though this scene has no physics. -->
+  <assembly fullname="UnityEngine.PhysicsModule">
+    <type fullname="UnityEngine.BoxCollider" preserve="all" />
+    <type fullname="UnityEngine.SphereCollider" preserve="all" />
+    <type fullname="UnityEngine.CapsuleCollider" preserve="all" />
+  </assembly>
+</linker>

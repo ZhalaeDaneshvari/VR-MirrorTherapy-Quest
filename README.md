@@ -1,3 +1,9 @@
+# Current branch: Milestone 3 — seated embodiment
+
+See [MILESTONE3.md](MILESTONE3.md) for setup, adjustable table controls, limitations, and headset tests. Automatic clinician-hand tracking is required future work and is not implemented here.
+
+---
+
 # Milestone 2 — controller-free Quest 3 hands
 
 **Status: hardware acceptance pending.** This branch adds a diagnostic hand-tracking scene to the tested Milestone 1 head-tracking foundation. No avatar, arm IK, mirroring, touch, gestures, or research recorder is included.

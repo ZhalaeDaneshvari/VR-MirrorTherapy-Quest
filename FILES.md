@@ -87,3 +87,15 @@ ProjectSettings/VersionControlSettings.asset
 README.md
 VERIFICATION.md
 ```
+
+## Milestone 3 additions
+
+- `Assets/Scripts/Embodiment/NormalHandMapping.cs`: separate displayed hand-pose copies, normal mapping only.
+- `Assets/Scripts/Embodiment/SeatedSetup.cs`: validated dimensions, explicit fixed body frame and table alignment status.
+- `Assets/Scripts/Embodiment/SeatedArmMath.cs`: analytic fixed-length two-segment IK with unreachable-target rejection.
+- `Assets/Scripts/Embodiment/SeatedAvatarDisplay.cs`: procedural first-person upper body, tracked hand shapes and adjustable table.
+- `Assets/Scripts/Embodiment/link.xml`: preserves primitive collider types requested internally by Unity during runtime shape creation.
+- `Assets/Editor/QuestSeatedSetup.cs`: scene configuration, validation and dedicated APK build.
+- `Assets/Scenes/QuestSeatedEmbodiment.unity`, `Assets/Materials/Seated*.mat`: minimal seated scene and materials.
+- `Tools/seated_setup.py`: researcher-side ADB settings and explicit alignment command.
+- `MILESTONE3.md`: setup and pending hardware acceptance checklist.
