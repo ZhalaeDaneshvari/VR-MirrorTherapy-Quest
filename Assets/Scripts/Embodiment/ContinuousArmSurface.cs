@@ -83,6 +83,20 @@ namespace QuestResearch.Embodiment
             }
             mesh.vertices = vertices; mesh.normals = normals; mesh.RecalculateBounds();
         }
+        public float ResolveSmallTableOverlap(SeatedParameters table)
+        {
+            float maximum=0;
+            // Correct only shallow penetrations. The exact hand-seam ring stays untouched.
+            for(int i=0;i<vertices.Length-Sides;i++)
+            {
+                var p=vertices[i];
+                float lift=table.tableHeight+TableContactMath.Clearance-p.y;
+                if(TableContactMath.Inside(p,table)&&lift>0&&lift<=TableContactMath.MaximumLift)
+                {vertices[i].y+=lift;maximum=Mathf.Max(maximum,lift);}
+            }
+            if(maximum>0){mesh.vertices=vertices;mesh.RecalculateBounds();}
+            return maximum;
+        }
         public float MinimumClearance(SeatedParameters table)
         {
             float clearance=float.PositiveInfinity;

@@ -601,6 +601,7 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::QuestResearch.Embodiment.SeatedAvatarDisplay
   mapping: {fileID: 1382505039}
+  bodyTargets: {fileID: 0}
   setup: {fileID: 1382505038}
   trackingSpace: {fileID: 1958011034}
   skin: {fileID: 2100000, guid: 0edc56d6bf753482db75f45f19e90a4d, type: 2}

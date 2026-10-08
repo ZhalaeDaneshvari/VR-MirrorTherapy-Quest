@@ -48,7 +48,7 @@ public static class QuestBodyAvatarSetup
         QualitySettings.shadows=ShadowQuality.All;QualitySettings.shadowResolution=ShadowResolution.Medium;QualitySettings.shadowDistance=4;
         origin.Camera.backgroundColor=new Color(.60f,.64f,.67f);
         EditorSceneManager.SaveScene(scene);
-        PlayerSettings.productName="Quest Body Driven Avatar";PlayerSettings.bundleVersion="0.6.0";PlayerSettings.Android.bundleVersionCode=8;
+        PlayerSettings.productName="Quest Body Driven Avatar";PlayerSettings.bundleVersion="0.6.1";PlayerSettings.Android.bundleVersionCode=9;
         PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android,AppId);
         EditorBuildSettings.scenes=new[]{new EditorBuildSettingsScene(ScenePath,true)};
         AssetDatabase.SaveAssets();Validate();
@@ -63,7 +63,9 @@ public static class QuestBodyAvatarSetup
         var normal=BodyArmTargets.ToBody(physical,false,frame);var reflected=BodyArmTargets.ToBody(physical,true,frame);
         if(Vector3.Distance(normal,new Vector3(-.2f,.7f,.3f))>.00001f||Vector3.Distance(reflected,new Vector3(.2f,.7f,.3f))>.00001f)
             throw new BuildFailedException("Body target reflection/coordinate conversion failed.");
-        Debug.Log("[BodyAvatar] Body-frame mapping checks PASS. Wearer fit acceptance pending.");
+        if(Mathf.Abs(TableContactMath.Lift(.87f,.90f,.88f)-.012f)>.00001f || TableContactMath.Lift(.8f,.81f,.88f)!=0 || TableContactMath.Lift(.92f,.94f,.88f)!=0 || TableContactMath.Lift(float.NaN,.9f,.88f)!=0 || TableContactMath.Lift(.85f,.87f,.88f,.875f)!=0)
+            throw new BuildFailedException("Table contact guard checks failed.");
+        Debug.Log("[BodyAvatar] Body-frame mapping and bounded table-contact checks PASS. Wearer fit acceptance pending.");
     }
     [MenuItem("Quest Prototype/Body Avatar/Build")]
     public static void Build()
