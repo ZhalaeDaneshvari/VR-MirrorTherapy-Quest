@@ -1,0 +1,119 @@
+using System.IO;
+using Meta.XR;
+using QuestResearch.BodyCalibration;
+using QuestResearch.Embodiment;
+using Unity.XR.CoreUtils;
+using UnityEditor;
+using UnityEditor.Build;
+using UnityEditor.Build.Reporting;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.XR.OpenXR;
+using UnityEngine.XR.Hands;
+
+public static class QuestBodyAvatarSetup
+{
+    public const string ScenePath="Assets/Scenes/QuestBodyDrivenAvatar.unity";
+    public const string AppId="org.mirrortherapy.questprototype.bodyavatar";
+    [MenuItem("Quest Prototype/Body Avatar/Configure")]
+    public static void Configure()
+    {
+        QuestMirrorSetup.Configure();
+        var xr=OpenXRSettings.GetSettingsForBuildTargetGroup(BuildTargetGroup.Android);
+        xr.GetFeature<MetaXRFeature>().enabled=true;EditorUtility.SetDirty(xr.GetFeature<MetaXRFeature>());
+        var config=OVRProjectConfig.CachedProjectConfig;
+        config.bodyTrackingSupport=OVRProjectConfig.FeatureSupport.Supported;
+        config.handTrackingSupport=OVRProjectConfig.HandTrackingSupport.HandsOnly;
+        OVRProjectConfig.CommitProjectConfig(config);
+        if(!File.Exists(ScenePath)&&!AssetDatabase.CopyAsset(QuestMirrorSetup.ScenePath,ScenePath))throw new BuildFailedException("Cannot create body-avatar scene.");
+        var scene=EditorSceneManager.OpenScene(ScenePath);
+        var origin=Object.FindAnyObjectByType<XROrigin>();
+        var setup=origin.GetComponent<SeatedSetup>();
+        var body=origin.GetComponent<BodyTrackingProbe>()??origin.gameObject.AddComponent<BodyTrackingProbe>();
+        var targets=origin.GetComponent<BodyArmTargets>()??origin.gameObject.AddComponent<BodyArmTargets>();
+        targets.Configure(body,setup,origin.CameraFloorOffsetObject.transform);
+        origin.GetComponent<SeatedAvatarDisplay>().ConfigureBodyTargets(targets);
+        // Muted cool table separates warm skin without altering tracked contact positions.
+        Surface("SeatedTable",new Color(.24f,.30f,.32f),.18f);
+        Surface("SeatedSkin",new Color(.69f,.46f,.32f),.28f);
+        Surface("SeatedShirt",new Color(.12f,.17f,.20f),.10f);
+        Surface("SeatedFloor",new Color(.49f,.52f,.54f),.05f);
+        RenderSettings.ambientMode=AmbientMode.Trilight;
+        RenderSettings.ambientSkyColor=new Color(.72f,.76f,.8f);
+        RenderSettings.ambientEquatorColor=new Color(.45f,.47f,.49f);
+        RenderSettings.ambientGroundColor=new Color(.28f,.27f,.26f);
+        foreach(var light in Object.FindObjectsByType<Light>())
+        {light.intensity=.85f;light.color=new Color(1,.95f,.9f);light.shadows=LightShadows.Soft;light.shadowStrength=.45f;light.shadowBias=.035f;light.transform.rotation=Quaternion.Euler(50,-30,0);}
+        QualitySettings.shadows=ShadowQuality.All;QualitySettings.shadowResolution=ShadowResolution.Medium;QualitySettings.shadowDistance=4;
+        origin.Camera.backgroundColor=new Color(.60f,.64f,.67f);
+        EditorSceneManager.SaveScene(scene);
+        PlayerSettings.productName="Quest Body Driven Avatar";PlayerSettings.bundleVersion="0.6.0";PlayerSettings.Android.bundleVersionCode=8;
+        PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android,AppId);
+        EditorBuildSettings.scenes=new[]{new EditorBuildSettingsScene(ScenePath,true)};
+        AssetDatabase.SaveAssets();Validate();
+    }
+    static void Surface(string name,Color color,float smoothness)
+    {var m=AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/"+name+".mat");m.color=color;m.SetFloat("_Glossiness",smoothness);EditorUtility.SetDirty(m);}
+    public static void Validate()
+    {
+        QuestProjectSetup.Validate();
+        var frame=new Pose(new Vector3(2,.4f,-3),Quaternion.Euler(0,67,0));
+        var physical=new Pose(frame.position+frame.rotation*new Vector3(-.2f,.7f,.3f),Quaternion.identity);
+        var normal=BodyArmTargets.ToBody(physical,false,frame);var reflected=BodyArmTargets.ToBody(physical,true,frame);
+        if(Vector3.Distance(normal,new Vector3(-.2f,.7f,.3f))>.00001f||Vector3.Distance(reflected,new Vector3(.2f,.7f,.3f))>.00001f)
+            throw new BuildFailedException("Body target reflection/coordinate conversion failed.");
+        Debug.Log("[BodyAvatar] Body-frame mapping checks PASS. Wearer fit acceptance pending.");
+    }
+    [MenuItem("Quest Prototype/Body Avatar/Build")]
+    public static void Build()
+    {
+        Validate();
+        if(PlayerSettings.GetApplicationIdentifier(NamedBuildTarget.Android)!=AppId)throw new BuildFailedException("Configure body avatar first.");
+        var report=BuildPipeline.BuildPlayer(new BuildPlayerOptions{scenes=new[]{ScenePath},locationPathName="Builds/QuestBodyDrivenAvatar.apk",target=BuildTarget.Android,options=BuildOptions.None});
+        if(report.summary.result!=BuildResult.Succeeded)throw new BuildFailedException("Body avatar build failed.");
+        Debug.Log("[BodyAvatar] APK build succeeded.");
+    }
+    public static void BuildAndPreview(){Build();Preview();}
+    public static void Preview()
+    {
+        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        var space = new GameObject("Preview tracking space").transform;
+        var left = Object.Instantiate(AssetDatabase.LoadAssetAtPath<RemappedHandMesh>("Assets/GeneratedHands"+"/LeftDisplayedHand.prefab"), space);
+        var right = Object.Instantiate(AssetDatabase.LoadAssetAtPath<RemappedHandMesh>("Assets/GeneratedHands"+"/RightDisplayedHand.prefab"), space);
+        var pose = new DisplayedHandPose();
+        var mirrored = new DisplayedHandPose();
+        var wrist = left.Joints[XRHandJointID.Wrist.ToIndex()];
+        Vector3 root = wrist.position;
+        Quaternion inverse = Quaternion.Inverse(wrist.rotation);
+        for (int i=0;i<pose.Joints.Length;i++)
+        {
+            pose.Valid[i]=mirrored.Valid[i]=true;
+            pose.Joints[i]=new Pose(new Vector3(-.19f,.94f,.35f)+inverse*(left.Joints[i].position-root), inverse*left.Joints[i].rotation);
+            mirrored.Joints[i]=MovementReflection.Reflect(pose.Joints[i],Pose.identity);
+        }
+        left.Apply(pose,space,true);right.Apply(mirrored,space,true);
+        var skin=AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/SeatedSkin.mat");
+        for(int side=0;side<2;side++)
+        {
+            var shoulder=new Vector3(side==0?-.19f:.19f,1.03f,-.07f);
+            var target=side==0?pose:mirrored;
+            var wristPose=target.Joints[XRHandJointID.Wrist.ToIndex()];
+            var elbow=new Vector3(side==0?-.21f:.21f,.925f,.09f); // Synthetic resting pose, not wearer measurements.
+            var arm=new GameObject("Preview arm").AddComponent<ContinuousArmSurface>();arm.Initialize(skin,(side==0?left:right).WristSeamPoints,(side==0?left:right).WristSeamNormals);
+            arm.Apply(shoulder,elbow,wristPose.position,wristPose.rotation);
+        }
+        var table=GameObject.CreatePrimitive(PrimitiveType.Cube);table.transform.position=new Vector3(0,.86f,.505f);table.transform.localScale=new Vector3(1.1f,.04f,.65f);
+        table.GetComponent<Renderer>().sharedMaterial=AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/SeatedTable.mat");
+        var light=new GameObject("Preview light").AddComponent<Light>();light.type=LightType.Directional;light.transform.rotation=Quaternion.Euler(50,-25,0);light.intensity=.8f;
+        RenderSettings.ambientLight=new Color(.65f,.65f,.65f);RenderSettings.skybox=null;
+        var camera=new GameObject("Preview camera").AddComponent<Camera>();camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(.68f,.70f,.71f);
+        camera.transform.position=new Vector3(0,1.28f,-.09f);camera.transform.LookAt(new Vector3(0,.76f,.36f));camera.fieldOfView=65;camera.nearClipPlane=.02f;
+        var texture=new RenderTexture(1280,960,24);camera.targetTexture=texture;camera.Render();RenderTexture.active=texture;
+        var png=new Texture2D(1280,960,TextureFormat.RGB24,false);png.ReadPixels(new Rect(0,0,1280,960),0,0);png.Apply();
+        File.WriteAllBytes("/private/tmp/quest-body-avatar-preview.png",png.EncodeToPNG());
+        camera.targetTexture=null;RenderTexture.active=null;Object.DestroyImmediate(texture);Object.DestroyImmediate(png);
+        Debug.Log("[Mirror] Synthetic preview saved to /private/tmp/quest-body-avatar-preview.png");
+    }
+
+}

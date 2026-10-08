@@ -4,10 +4,10 @@ using UnityEngine.Rendering;
 namespace QuestResearch.Embodiment
 {
     // A single tapered surface replaces disconnected cylinders. The centreline is still IK,
-    // not a measured forearm surface or a biomechanical model.
+    // or body-provider estimates, not a measured surface or biomechanical model.
     public sealed class ContinuousArmSurface : MonoBehaviour
     {
-        const int Rings = 17;
+        const int Rings = 25;
         int Sides;
         Vector3[] vertices, normals, seamPoints, seamNormals;
         Vector3 seamCentre;
@@ -34,7 +34,8 @@ namespace QuestResearch.Embodiment
             gameObject.AddComponent<MeshFilter>().sharedMesh = mesh;
             var renderer = gameObject.AddComponent<MeshRenderer>();
             renderer.sharedMaterial = material;
-            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            renderer.shadowCastingMode = ShadowCastingMode.On;
+            renderer.receiveShadows = true;
         }
         public void Apply(Vector3 shoulder, Vector3 elbow, Vector3 wrist, Quaternion wristRotation, float fullness=1.3f)
         {
@@ -63,7 +64,9 @@ namespace QuestResearch.Embodiment
                 if (across.sqrMagnitude < .1f) across = Vector3.Cross(tangent, Vector3.forward).normalized;
                 if (across.sqrMagnitude < .1f) across = Vector3.Cross(tangent, Vector3.up).normalized;
                 Vector3 depth = Vector3.Cross(tangent, across).normalized;
-                float radius = t <= .5f ? Mathf.Lerp(.044f, .030f, t * 2) : Mathf.Lerp(.030f, .023f, (t - .5f) * 2) + .004f * Mathf.Sin((t - .5f) * 2 * Mathf.PI);
+                // Smooth muscle belly below the elbow, tapered toward the wrist. Generic dimensions.
+                float radius = t <= .5f ? Mathf.Lerp(.043f, .029f, t * 2) + .006f*Mathf.Sin(t*2*Mathf.PI)
+                    : Mathf.Lerp(.029f, .021f, (t-.5f)*2) + .010f*Mathf.Sin((t-.5f)*2*Mathf.PI);
                 radius*=fullness;
                 float flat = Mathf.Lerp(.95f, .68f, t);
                 for (int s = 0; s < Sides; s++)

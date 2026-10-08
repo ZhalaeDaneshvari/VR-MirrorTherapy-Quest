@@ -4,10 +4,14 @@ using UnityEngine.XR.Hands;
 
 namespace QuestResearch.Embodiment
 {
-    // First-person upper body. Only hands/wrists come from tracking; shoulders and elbows are estimates.
+    // First-person upper body. Hands use XR tracking; arms use mapped body estimates when configured, otherwise legacy IK.
     public sealed class SeatedAvatarDisplay : MonoBehaviour
     {
         [SerializeField] MovementRemapper mapping;
+        [SerializeField] BodyArmTargets bodyTargets;
+        public void ConfigureBodyTargets(BodyArmTargets targets){bodyTargets=targets;}
+        // Body estimates update independently from XR Hands; refresh after both sources.
+        void LateUpdate(){if(bodyTargets!=null)Refresh();}
         [SerializeField] SeatedSetup setup;
         [SerializeField] Transform trackingSpace;
         [SerializeField] Material skin,shirt,tableMaterial;
@@ -72,7 +76,7 @@ namespace QuestResearch.Embodiment
         {
             var go=GameObject.CreatePrimitive(shape);go.name=name;go.transform.SetParent(parent,false);
             Destroy(go.GetComponent<Collider>());var renderer=go.GetComponent<Renderer>();renderer.sharedMaterial=material;
-            renderer.shadowCastingMode=ShadowCastingMode.Off;renderer.receiveShadows=false;return go.transform;
+            renderer.shadowCastingMode=ShadowCastingMode.On;renderer.receiveShadows=true;return go.transform;
         }
         void Chain(XRHandJointID first,XRHandJointID last,int wrist){for(int i=first.ToIndex();i<=last.ToIndex();i++)parents[i]=i==first.ToIndex()?wrist:i-1;}
         void Refresh()
@@ -90,8 +94,13 @@ namespace QuestResearch.Embodiment
                 tableLegs[i].localPosition=new Vector3(x,(p.tableHeight-.04f)*.5f,z);tableLegs[i].localScale=new Vector3(.04f,p.tableHeight-.04f,.04f);
             }
             Draw(0,mapping.Left,visible);Draw(1,mapping.Right,visible);
+            if(bodyTargets!=null && bodyTargets.TryGet(mapping.Left,out var leftShoulder,out _) && bodyTargets.TryGet(mapping.Right,out var rightShoulder,out _))
+            {
+                torso.localPosition=(leftShoulder+rightShoulder)*.5f+Vector3.down*.24f;
+                torso.localScale=new Vector3(Vector3.Distance(leftShoulder,rightShoulder)+.08f,.28f,.25f);
+            }
             float minimum=Mathf.Min(surfaceClearance[0],surfaceClearance[1]);
-            setup.SurfaceFitWarning=minimum<-.005f?"Arm/table overlap: fit check needed":"";
+            setup.SurfaceFitWarning=minimum<-.005f?"Arm/table overlap: fit check needed":bodyTargets!=null?bodyTargets.Status:"";
             if(visible && Time.realtimeSinceStartupAsDouble>=nextFitReport)
             {
                 nextFitReport=Time.realtimeSinceStartupAsDouble+5;
@@ -144,10 +153,13 @@ namespace QuestResearch.Embodiment
                 Vector3 shoulder=new Vector3((side==0?-1:1)*p.shoulderWidth*.5f,setup.SeatedHeadHeight-p.shoulderDrop,-.07f);
                 Vector3 wrist=setup.BodyFrame.InverseTransformPoint(trackingSpace.TransformPoint(hand.Joints[w].position));
                 Vector3 pole=SeatedArmMath.RestingElbowPole(side==0);
-                reachable=SeatedArmMath.TryElbow(shoulder,wrist,p.upperArmLength,p.forearmLength,pole,out Vector3 elbow);
+                Vector3 elbow;
+                if(bodyTargets!=null)
+                    reachable=bodyTargets.TryGet(hand,out shoulder,out elbow);
+                else reachable=SeatedArmMath.TryElbow(shoulder,wrist,p.upperArmLength,p.forearmLength,pole,out elbow);
                 float aboveTable=wrist.y-p.tableHeight;
                 bool overTable=Mathf.Abs(wrist.x)<p.tableWidth*.5f && wrist.z>=p.tableNearEdge && wrist.z<=p.tableNearEdge+p.tableDepth;
-                if(reachable && p.tableSupportEnabled && overTable && aboveTable>-.03f && aboveTable<.16f)
+                if(bodyTargets==null && reachable && p.tableSupportEnabled && overTable && aboveTable>-.03f && aboveTable<.16f)
                 {
                     // Blend back to free-space IK as the wrist lifts. Never claim sensed contact.
                     float support=1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(.07f,.16f,aboveTable));

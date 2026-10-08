@@ -22,7 +22,7 @@ FIELDS = {
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--app', choices=['seated', 'mirror'], default='mirror', help='Default: M4 mirror; use seated for M3')
+    parser.add_argument('--app', choices=['seated', 'mirror', 'bodyavatar'], default='mirror', help='Default: M4 mirror; seated=M3, bodyavatar=body-driven arms')
     parser.add_argument('--arm-fullness', type=float, help='Visual arm thickness multiplier, 0.8–1.8; never changes tracked hand targets')
     parser.add_argument('--table-support', choices=['on', 'off'], help='Estimated support-aware elbow pose near the table')
     parser.add_argument('--condition', choices=['normal', 'left-to-right', 'right-to-left'])
@@ -34,6 +34,9 @@ def main():
     for flag in FIELDS:
         parser.add_argument('--' + flag + '-cm', type=float)
     args = parser.parse_args()
+    if args.app == 'bodyavatar':
+        if args.table_support is not None or any(getattr(args, name) is not None for name in ['shoulder_width_cm','shoulder_drop_cm','upper_arm_cm','forearm_cm']):
+            parser.error('Body-driven arms use provider joints, not legacy IK dimensions or table support. Table position and arm fullness remain adjustable.')
     REMOTE = "/sdcard/Android/data/org.mirrortherapy.questprototype." + args.app + "/files/seated-setup.json"
     adb = [args.adb] + (['-s', args.serial] if args.serial else [])
     def run(*parts):
