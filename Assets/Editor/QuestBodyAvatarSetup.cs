@@ -48,7 +48,7 @@ public static class QuestBodyAvatarSetup
         QualitySettings.shadows=ShadowQuality.All;QualitySettings.shadowResolution=ShadowResolution.Medium;QualitySettings.shadowDistance=4;
         origin.Camera.backgroundColor=new Color(.60f,.64f,.67f);
         EditorSceneManager.SaveScene(scene);
-        PlayerSettings.productName="Quest Body Driven Avatar";PlayerSettings.bundleVersion="0.6.1";PlayerSettings.Android.bundleVersionCode=9;
+        PlayerSettings.productName="Quest Body Driven Avatar";PlayerSettings.bundleVersion="0.7.0";PlayerSettings.Android.bundleVersionCode=10;
         PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android,AppId);
         EditorBuildSettings.scenes=new[]{new EditorBuildSettingsScene(ScenePath,true)};
         AssetDatabase.SaveAssets();Validate();
@@ -76,7 +76,7 @@ public static class QuestBodyAvatarSetup
         if(report.summary.result!=BuildResult.Succeeded)throw new BuildFailedException("Body avatar build failed.");
         Debug.Log("[BodyAvatar] APK build succeeded.");
     }
-    public static void BuildAndPreview(){Build();Preview();}
+    public static void BuildAndPreview(){Build();Preview();QuestMirrorSetup.RenderControlPreview();}
     public static void Preview()
     {
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);

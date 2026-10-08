@@ -116,6 +116,13 @@ namespace QuestResearch.Embodiment
                 Debug.LogWarning("[Seated] Settings applied, but acknowledgement could not be saved: "+e.Message);
             }
         }
+        public void SetMovement(MovementCondition condition,bool showSource)
+        {
+            if(!Enum.IsDefined(typeof(MovementCondition),condition))throw new ArgumentOutOfRangeException(nameof(condition));
+            parameters.movementCondition=condition;parameters.showSourceHand=showSource;
+            Debug.Log($"[Movement] t={Time.realtimeSinceStartupAsDouble:F3} condition={condition} showSource={showSource}; testing control, not a trial event.");
+            Changed?.Invoke();Save();
+        }
         public void AdjustTableHeight(float metres)
         {
             parameters.tableHeight=Mathf.Clamp(parameters.tableHeight+metres,.45f,1.1f);
