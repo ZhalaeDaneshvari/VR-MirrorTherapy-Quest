@@ -7,6 +7,9 @@
     "com.unity.inputsystem": "1.20.0",
     "com.unity.xr.core-utils": "2.6.0",
     "com.unity.xr.management": "4.7.0",
-    "com.unity.xr.hands": "1.9.0"
+    "com.unity.xr.hands": "1.9.0",
+    "com.meta.xr.sdk.core": "207.0.0",
+    "com.unity.ugui": "2.6.0",
+    "com.unity.modules.assetbundle": "1.0.0"
   }
 }
