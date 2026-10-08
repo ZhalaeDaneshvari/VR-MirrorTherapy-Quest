@@ -221,6 +221,26 @@ public static class QuestMirrorSetup
             Require(!output.Valid[3],"Invalid source joint remained visible.");
             source.JointValid[3]=true;
         }
+        foreach(bool visibility in new[]{true,false})
+        {
+            MovementReflection.Map(left,right,a,b,MovementCondition.SwapBoth,visibility,true,frame);
+            Require(a.SourceHand==PhysicalHand.Right && b.SourceHand==PhysicalHand.Left && a.Reflected && b.Reflected,"Swap source identity failed.");
+            for(int i=0;i<a.Joints.Length;i++)
+            {
+                Require(a.Valid[i]&&b.Valid[i],"Swap must keep both independent outputs visible.");
+                var expectedLeft=MovementReflection.Reflect(right.JointPoses[i],frame);
+                var expectedRight=MovementReflection.Reflect(left.JointPoses[i],frame);
+                Near(a.Joints[i].position,expectedLeft.position,"Swap left used wrong physical source.");
+                Near(b.Joints[i].position,expectedRight.position,"Swap right used wrong physical source.");
+                Require(Quaternion.Angle(a.Joints[i].rotation,expectedLeft.rotation)<.06f && Quaternion.Angle(b.Joints[i].rotation,expectedRight.rotation)<.06f,"Swap finger orientation failed.");
+            }
+        }
+        left.JointValid[3]=false;
+        MovementReflection.Map(left,right,a,b,MovementCondition.SwapBoth,true,true,frame);
+        Require(a.Valid[3]&&!b.Valid[3],"Swap tracking failure leaked to the independent hand.");
+        left.JointValid[3]=true;
+        MovementReflection.Map(left,right,a,b,MovementCondition.SwapBoth,true,false,frame);
+        Require(!a.Valid.Any(x=>x)&&!b.Valid.Any(x=>x),"Swap without alignment must hide both outputs.");
         MovementReflection.Map(left,right,a,b,MovementCondition.Normal,true,false,frame);
         Near(a.Joints[0].position,left.JointPoses[0].position,"Normal left changed.");
         Near(b.Joints[0].position,right.JointPoses[0].position,"Normal right changed.");
@@ -249,11 +269,16 @@ public static class QuestMirrorSetup
         var controls=new GameObject("Preview controls").AddComponent<SeatedTestControls>();
         controls.Configure(null,null,camera.transform,AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/SetupButton.mat"),AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/SetupButtonHover.mat"),Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
         controls.SendMessage("Start");
+        controls.SetSettingsOpen(true);
         var panel=scene.GetRootGameObjects().Single(x=>x.name=="Testing controls - gaze and pinch");
         panel.transform.position=camera.transform.position+Vector3.forward*.65f+Vector3.up*.12f;panel.SetActive(true);
         var title=panel.GetComponentsInChildren<TextMesh>().Single(x=>x.text=="Setup controls");title.text="Normal / table 74 cm\nWaiting for alignment\nTable uncalibrated";
         var texture=new RenderTexture(1280,960,24);camera.targetTexture=texture;camera.Render();RenderTexture.active=texture;
         var png=new Texture2D(1280,960,TextureFormat.RGB24,false);png.ReadPixels(new Rect(0,0,1280,960),0,0);png.Apply();File.WriteAllBytes("/private/tmp/quest-controls-preview.png",png.EncodeToPNG());
+        controls.SetSettingsOpen(false);
+        Require(panel.GetComponentsInChildren<TextMesh>().Length==1 && panel.GetComponentsInChildren<TextMesh>()[0].text=="Settings","Collapsed controls leaked visible settings.");
+        camera.Render();RenderTexture.active=texture;png.ReadPixels(new Rect(0,0,1280,960),0,0);png.Apply();
+        File.WriteAllBytes("/private/tmp/quest-settings-closed-preview.png",png.EncodeToPNG());
         camera.targetTexture=null;RenderTexture.active=null;Object.DestroyImmediate(texture);Object.DestroyImmediate(png);
     }
 

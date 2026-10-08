@@ -25,7 +25,7 @@ def main():
     parser.add_argument('--app', choices=['seated', 'mirror', 'bodyavatar'], default='mirror', help='Default: M4 mirror; seated=M3, bodyavatar=body-driven arms')
     parser.add_argument('--arm-fullness', type=float, help='Visual arm thickness multiplier, 0.8–1.8; never changes tracked hand targets')
     parser.add_argument('--table-support', choices=['on', 'off'], help='Estimated support-aware elbow pose near the table')
-    parser.add_argument('--condition', choices=['normal', 'left-to-right', 'right-to-left'])
+    parser.add_argument('--condition', choices=['normal', 'left-to-right', 'right-to-left', 'swap-both'])
     parser.add_argument('--source-hand', choices=['show', 'hide'], help='In a mirrored condition show both hands or only the opposite hand')
     parser.add_argument('--adb', default=DEFAULT_ADB)
     parser.add_argument('--serial', help='Required when several devices are connected')
@@ -68,7 +68,7 @@ def main():
         if condition_changed and 'movementCondition' not in data:
             parser.error('This installed app does not support movement conditions. Use the M4 mirror app.')
         if args.condition is not None:
-            data['movementCondition'] = ['normal', 'left-to-right', 'right-to-left'].index(args.condition)
+            data['movementCondition'] = ['normal', 'left-to-right', 'right-to-left', 'swap-both'].index(args.condition)
         if args.source_hand is not None:
             data['showSourceHand'] = args.source_hand == 'show'
         data['requestAlignment'] = args.align

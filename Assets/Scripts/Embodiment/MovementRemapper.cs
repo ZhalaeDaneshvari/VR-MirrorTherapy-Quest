@@ -5,7 +5,7 @@ using QuestResearch.Hands;
 
 namespace QuestResearch.Embodiment
 {
-    public enum MovementCondition { Normal, LeftToRight, RightToLeft }
+    public enum MovementCondition { Normal, LeftToRight, RightToLeft, SwapBoth }
     public enum PhysicalHand { Left, Right }
 
     // Mutable provider snapshots and displayed targets never share pose arrays.
@@ -46,6 +46,11 @@ namespace QuestResearch.Embodiment
                 bodyInTracking.rotation * Quaternion.LookRotation(forward, up));
         }
 
+        static void ReflectInto(TrackingHandFrame input,DisplayedHandPose target,PhysicalHand source,Pose body)
+        {
+            target.CopyFrom(input);target.SourceHand=source;target.Reflected=true;
+            for(int i=0;i<target.Joints.Length;i++)if(target.Valid[i])target.Joints[i]=Reflect(input.JointPoses[i],body);
+        }
         public static void Map(TrackingHandFrame left, TrackingHandFrame right,
             DisplayedHandPose outputLeft, DisplayedHandPose outputRight,
             MovementCondition condition, bool showSource, bool aligned, Pose body)
@@ -55,6 +60,12 @@ namespace QuestResearch.Embodiment
             if (condition == MovementCondition.Normal) return;
             // Never fall back silently to congruent motion when the mirror frame is invalid.
             if (!aligned) { outputLeft.Invalidate(); outputRight.Invalidate(); return; }
+            if(condition==MovementCondition.SwapBoth)
+            {
+                ReflectInto(right,outputLeft,PhysicalHand.Right,body);
+                ReflectInto(left,outputRight,PhysicalHand.Left,body);
+                return; // Both outputs are independent destinations; source visibility does not apply.
+            }
             var input = condition == MovementCondition.LeftToRight ? left : right;
             var target = condition == MovementCondition.LeftToRight ? outputRight : outputLeft;
             target.CopyFrom(input);
