@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 using UnityEngine.XR.Hands;
 
 namespace QuestResearch.Embodiment
@@ -51,6 +52,29 @@ namespace QuestResearch.Embodiment
             position+=weight*skinMatrices[bone].MultiplyPoint3x4(point);
             normal+=weight*skinMatrices[bone].MultiplyVector(direction);
         }
+        public float HighestOverTable {get;private set;}=float.NegativeInfinity;
+        Mesh contactMesh;
+        readonly List<Vector3> contactVertices=new List<Vector3>();
+        // Query actual deformed skin, including fingertips, rather than joint centres.
+        public float LowestOverTable(Transform body,SeatedParameters table)
+        {
+            HighestOverTable=float.NegativeInfinity;
+            if(!Visible)return float.PositiveInfinity;
+            if(contactMesh==null)contactMesh=new Mesh{name="Reusable hand contact query"};
+            float lowest=float.PositiveInfinity;
+            foreach(var renderer in meshes)
+            {
+                renderer.BakeMesh(contactMesh);contactMesh.GetVertices(contactVertices);
+                Matrix4x4 toBody=body.worldToLocalMatrix*renderer.transform.localToWorldMatrix;
+                foreach(var vertex in contactVertices)
+                {
+                    var p=toBody.MultiplyPoint3x4(vertex);
+                    if(TableContactMath.Inside(p,table)){lowest=Mathf.Min(lowest,p.y);HighestOverTable=Mathf.Max(HighestOverTable,p.y);}
+                }
+            }
+            return lowest;
+        }
+        void OnDestroy(){if(contactMesh!=null)Destroy(contactMesh);}
         public bool Visible { get; private set; }
         public Transform[] Joints => joints;
         public void Configure(Transform[] bones, SkinnedMeshRenderer[] renderers)

@@ -1,6 +1,6 @@
 # Body calibration investigation
 
-Status: research and proposed validation plan, 2026-10-06. No body-tracking SDK has been installed, no new APK has been built, and personalized arm fitting has not passed headset testing.
+Status: investigation started 2026-10-06; diagnostic built and installed 2026-10-08. Meta Core 207.0.0 now runs on Quest with valid high-fidelity body samples. Personalized arm fitting has NOT passed headset testing. See BODY_PROBE.md and BODY_PROBE_VERIFICATION.md.
 
 ## Why the current arms are not accepted
 
@@ -33,7 +33,7 @@ Next dependency experiment: pin Meta Core 207.0.0 on this isolated branch, inspe
 
 Registry: https://packages.unity.com/com.meta.xr.sdk.core
 
-Local blocker: only approximately 635 MiB free at inspection. Do not start SDK import/Android build with this headroom. Request at least 10 GB free as practical working headroom (engineering estimate, not a vendor minimum). No personal files should be deleted automatically to make room.
+The initial disk-space blocker was resolved by the user. SDK import and Android build completed on 2026-10-08. No personal files were deleted to make room.
 
 ## Small next hardware experiment
 
@@ -67,4 +67,4 @@ Automatic clinician-hand tracking remains essential but unresolved. Participant 
 3. Personalized rig fitting passes first-person wrist continuity, elbow placement and table-rest tests without corrupting raw tracking.
 4. Reintroduce mirrored conditions only after normal embodiment passes; log calibration and mapping separately.
 
-No step is currently marked hardware-passed.
+Provider startup and valid/high-fidelity samples were observed on the device. Seated anatomical fit and the remaining acceptance checkpoints still require participant testing.

@@ -4,10 +4,14 @@ using UnityEngine.XR.Hands;
 
 namespace QuestResearch.Embodiment
 {
-    // First-person upper body. Only hands/wrists come from tracking; shoulders and elbows are estimates.
+    // First-person upper body. Hands use XR tracking; arms use mapped body estimates when configured, otherwise legacy IK.
     public sealed class SeatedAvatarDisplay : MonoBehaviour
     {
         [SerializeField] MovementRemapper mapping;
+        [SerializeField] BodyArmTargets bodyTargets;
+        public void ConfigureBodyTargets(BodyArmTargets targets){bodyTargets=targets;}
+        // Body estimates update independently from XR Hands; refresh after both sources.
+        void LateUpdate(){if(bodyTargets!=null)Refresh();}
         [SerializeField] SeatedSetup setup;
         [SerializeField] Transform trackingSpace;
         [SerializeField] Material skin,shirt,tableMaterial;
@@ -24,6 +28,10 @@ namespace QuestResearch.Embodiment
         bool[] previousReach={true,true};
         readonly float[] surfaceClearance={float.PositiveInfinity,float.PositiveInfinity};
         double nextFitReport;
+        readonly DisplayedHandPose[] contactHands={new DisplayedHandPose(),new DisplayedHandPose()};
+        // Metres added AFTER experimental mapping. Raw tracking and mapped targets remain unchanged.
+        public readonly float[] HandTableLift=new float[2];
+        public readonly float[] ArmSurfaceLift=new float[2];
         public void Configure(MovementRemapper targets,SeatedSetup alignment,Transform space,Material skinMaterial,Material shirtMaterial,Material table)
         {mapping=targets;setup=alignment;trackingSpace=space;skin=skinMaterial;shirt=shirtMaterial;tableMaterial=table;}
         void Start()
@@ -72,7 +80,7 @@ namespace QuestResearch.Embodiment
         {
             var go=GameObject.CreatePrimitive(shape);go.name=name;go.transform.SetParent(parent,false);
             Destroy(go.GetComponent<Collider>());var renderer=go.GetComponent<Renderer>();renderer.sharedMaterial=material;
-            renderer.shadowCastingMode=ShadowCastingMode.Off;renderer.receiveShadows=false;return go.transform;
+            renderer.shadowCastingMode=ShadowCastingMode.On;renderer.receiveShadows=true;return go.transform;
         }
         void Chain(XRHandJointID first,XRHandJointID last,int wrist){for(int i=first.ToIndex();i<=last.ToIndex();i++)parents[i]=i==first.ToIndex()?wrist:i-1;}
         void Refresh()
@@ -90,12 +98,17 @@ namespace QuestResearch.Embodiment
                 tableLegs[i].localPosition=new Vector3(x,(p.tableHeight-.04f)*.5f,z);tableLegs[i].localScale=new Vector3(.04f,p.tableHeight-.04f,.04f);
             }
             Draw(0,mapping.Left,visible);Draw(1,mapping.Right,visible);
+            if(bodyTargets!=null && bodyTargets.TryGet(mapping.Left,out var leftShoulder,out _) && bodyTargets.TryGet(mapping.Right,out var rightShoulder,out _))
+            {
+                torso.localPosition=(leftShoulder+rightShoulder)*.5f+Vector3.down*.24f;
+                torso.localScale=new Vector3(Vector3.Distance(leftShoulder,rightShoulder)+.08f,.28f,.25f);
+            }
             float minimum=Mathf.Min(surfaceClearance[0],surfaceClearance[1]);
-            setup.SurfaceFitWarning=minimum<-.005f?"Arm/table overlap: fit check needed":"";
+            setup.SurfaceFitWarning=minimum<-.005f?"Arm/table overlap: fit check needed":bodyTargets!=null?bodyTargets.Status:"";
             if(visible && Time.realtimeSinceStartupAsDouble>=nextFitReport)
             {
                 nextFitReport=Time.realtimeSinceStartupAsDouble+5;
-                Debug.Log($"[SurfaceFit] table={p.tableHeight:F3}m fullness={p.armFullness:F2} supportedIK={p.tableSupportEnabled} leftClearance={surfaceClearance[0]:F3}m rightClearance={surfaceClearance[1]:F3}m. Clearance is rendered geometry, not physical contact sensing.");
+                Debug.Log($"[SurfaceFit] table={p.tableHeight:F3}m fullness={p.armFullness:F2} supportedIK={p.tableSupportEnabled} leftClearance={surfaceClearance[0]:F3}m rightClearance={surfaceClearance[1]:F3}m. handLiftL={HandTableLift[0]:F4}m handLiftR={HandTableLift[1]:F4}m armSurfaceLiftL={ArmSurfaceLift[0]:F4}m armSurfaceLiftR={ArmSurfaceLift[1]:F4}m. Display corrections only; not sensed physical contact.");
             }
         }
         void Draw(int side,DisplayedHandPose hand,bool bodyVisible)
@@ -104,6 +117,25 @@ namespace QuestResearch.Embodiment
             if (handMeshes[side] != null)
                 handMeshes[side].Apply(hand, trackingSpace, setup.HeadTracked);
             else DrawPrimitiveHand(side, hand);
+            HandTableLift[side]=0;
+            if(bodyTargets!=null && bodyVisible && handMeshes[side]!=null && handMeshes[side].Visible)
+            {
+                var p=setup.Parameters;
+                var wrist=setup.BodyFrame.InverseTransformPoint(trackingSpace.TransformPoint(hand.Joints[XRHandJointID.Wrist.ToIndex()].position));
+                float lift=TableContactMath.Lift(handMeshes[side].LowestOverTable(setup.BodyFrame,p),wrist.y,p.tableHeight,handMeshes[side].HighestOverTable);
+                HandTableLift[side]=lift;
+                if(lift>0)
+                {
+                    var corrected=contactHands[side];
+                    System.Array.Copy(hand.Joints,corrected.Joints,hand.Joints.Length);
+                    System.Array.Copy(hand.Valid,corrected.Valid,hand.Valid.Length);
+                    corrected.SourceHand=hand.SourceHand;corrected.Reflected=hand.Reflected;corrected.InputSequence=hand.InputSequence;
+                    Vector3 offset=trackingSpace.InverseTransformVector(setup.BodyFrame.up*lift);
+                    for(int i=0;i<corrected.Joints.Length;i++)corrected.Joints[i].position+=offset;
+                    handMeshes[side].Apply(corrected,trackingSpace,setup.HeadTracked);
+                    hand=corrected;
+                }
+            }
             DrawArm(side, hand, bodyVisible);
         }
         void DrawPrimitiveHand(int side, DisplayedHandPose hand)
@@ -137,17 +169,20 @@ namespace QuestResearch.Embodiment
         {
             int w = XRHandJointID.Wrist.ToIndex();
             bool reachable=false;
-            surfaceClearance[side]=float.PositiveInfinity;
+            surfaceClearance[side]=float.PositiveInfinity;ArmSurfaceLift[side]=0;
             if(bodyVisible&&hand.Valid[w]&&(handMeshes[side]==null||handMeshes[side].Visible))
             {
                 var p=setup.Parameters;
                 Vector3 shoulder=new Vector3((side==0?-1:1)*p.shoulderWidth*.5f,setup.SeatedHeadHeight-p.shoulderDrop,-.07f);
                 Vector3 wrist=setup.BodyFrame.InverseTransformPoint(trackingSpace.TransformPoint(hand.Joints[w].position));
                 Vector3 pole=SeatedArmMath.RestingElbowPole(side==0);
-                reachable=SeatedArmMath.TryElbow(shoulder,wrist,p.upperArmLength,p.forearmLength,pole,out Vector3 elbow);
+                Vector3 elbow;
+                if(bodyTargets!=null)
+                    reachable=bodyTargets.TryGet(hand,out shoulder,out elbow);
+                else reachable=SeatedArmMath.TryElbow(shoulder,wrist,p.upperArmLength,p.forearmLength,pole,out elbow);
                 float aboveTable=wrist.y-p.tableHeight;
                 bool overTable=Mathf.Abs(wrist.x)<p.tableWidth*.5f && wrist.z>=p.tableNearEdge && wrist.z<=p.tableNearEdge+p.tableDepth;
-                if(reachable && p.tableSupportEnabled && overTable && aboveTable>-.03f && aboveTable<.16f)
+                if(bodyTargets==null && reachable && p.tableSupportEnabled && overTable && aboveTable>-.03f && aboveTable<.16f)
                 {
                     // Blend back to free-space IK as the wrist lifts. Never claim sensed contact.
                     float support=1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(.07f,.16f,aboveTable));
@@ -161,6 +196,8 @@ namespace QuestResearch.Embodiment
                     {
                         Quaternion wristRotation=Quaternion.Inverse(setup.BodyFrame.rotation)*trackingSpace.rotation*hand.Joints[w].rotation;
                         armSurfaces[side].Apply(shoulder, elbow, wrist, wristRotation,p.armFullness);
+                        if(bodyTargets!=null && handMeshes[side].HighestOverTable>=p.tableHeight && wrist.y>=p.tableHeight-.025f && wrist.y<=p.tableHeight+.12f)
+                            ArmSurfaceLift[side]=armSurfaces[side].ResolveSmallTableOverlap(p);
                         surfaceClearance[side]=armSurfaces[side].MinimumClearance(p);
                     }
                     else { Segment(upper[side],shoulder,elbow,.075f);Segment(forearm[side],elbow,wrist,.058f); }

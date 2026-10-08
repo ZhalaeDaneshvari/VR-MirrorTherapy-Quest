@@ -6,8 +6,8 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/QuestMovementMirror.unity
-    guid: 3b9643e8f6ca84734abb0852baeb6a8e
+    path: Assets/Scenes/QuestBodyDrivenAvatar.unity
+    guid: b0cd957c76a7448edaee2f74e3825f60
   m_configObjects:
     com.unity.xr.management.loader_settings: {fileID: 11400000, guid: 9cb1bac0a0d144c80a3ec4daa04aa835, type: 2}
     com.unity.xr.openxr.settings4: {fileID: 11400000, guid: 8b9eb8408684040df9822f22b5bf1700, type: 2}

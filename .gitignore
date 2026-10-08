@@ -18,3 +18,13 @@ UserSettings/
 # Recreated by QuestMirrorSetup from the pinned Unity XR Hands package.
 Assets/GeneratedHands/
 Assets/GeneratedHands.meta
+
+# SDK-generated local debugger credentials and machine-specific test metadata.
+Assets/Resources/DevAgentSettings.asset*
+Assets/Resources/PerformanceTestRunInfo.json*
+Assets/Resources/PerformanceTestRunSettings.json*
+Assets/Resources/InputActions.asset*
+Assets/StreamingAssets.meta
+Assets/Resources/OVRBuildConfig.asset*
+Assets/StreamingAssets/RuntimeActionBindings.json*
+__pycache__/
