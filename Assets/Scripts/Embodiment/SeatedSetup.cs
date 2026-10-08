@@ -13,6 +13,7 @@ namespace QuestResearch.Embodiment
         public float shoulderWidth=.38f,shoulderDrop=.22f,upperArmLength=.30f,forearmLength=.26f;
         public float armFullness=1.3f;
         public bool tableSupportEnabled=true;
+        public bool tableContactEnabled=true;
         public MovementCondition movementCondition = MovementCondition.Normal;
         public bool showSourceHand = true;
         public bool tableAlignmentConfirmed=false;
@@ -84,6 +85,7 @@ namespace QuestResearch.Embodiment
                 // Upgrade older files without losing the wearer's chosen table height.
                 if(candidate!=null && !json.Contains("\"armFullness\""))candidate.armFullness=1.3f;
                 if(candidate!=null && !json.Contains("\"tableSupportEnabled\""))candidate.tableSupportEnabled=true;
+                if(candidate!=null && !json.Contains("\"tableContactEnabled\""))candidate.tableContactEnabled=true;
                 if(candidate==null||!candidate.Valid())throw new ArgumentException("Setup dimensions are outside supported ranges.");
                 bool requested=candidate.requestAlignment;
                 candidate.requestAlignment=false;
@@ -116,6 +118,8 @@ namespace QuestResearch.Embodiment
                 Debug.LogWarning("[Seated] Settings applied, but acknowledgement could not be saved: "+e.Message);
             }
         }
+        public void SetTableContact(bool enabled)
+        {parameters.tableContactEnabled=enabled;Changed?.Invoke();Save();Debug.Log("[TableRest] Visual assist="+enabled);}
         public void SetMovement(MovementCondition condition,bool showSource)
         {
             if(!Enum.IsDefined(typeof(MovementCondition),condition))throw new ArgumentOutOfRangeException(nameof(condition));

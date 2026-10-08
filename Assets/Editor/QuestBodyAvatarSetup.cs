@@ -48,7 +48,7 @@ public static class QuestBodyAvatarSetup
         QualitySettings.shadows=ShadowQuality.All;QualitySettings.shadowResolution=ShadowResolution.Medium;QualitySettings.shadowDistance=4;
         origin.Camera.backgroundColor=new Color(.60f,.64f,.67f);
         EditorSceneManager.SaveScene(scene);
-        PlayerSettings.productName="Quest Body Driven Avatar";PlayerSettings.bundleVersion="0.7.1";PlayerSettings.Android.bundleVersionCode=11;
+        PlayerSettings.productName="Quest Body Driven Avatar";PlayerSettings.bundleVersion="0.7.2";PlayerSettings.Android.bundleVersionCode=12;
         PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android,AppId);
         EditorBuildSettings.scenes=new[]{new EditorBuildSettingsScene(ScenePath,true)};
         AssetDatabase.SaveAssets();Validate();
@@ -63,9 +63,25 @@ public static class QuestBodyAvatarSetup
         var normal=BodyArmTargets.ToBody(physical,false,frame);var reflected=BodyArmTargets.ToBody(physical,true,frame);
         if(Vector3.Distance(normal,new Vector3(-.2f,.7f,.3f))>.00001f||Vector3.Distance(reflected,new Vector3(.2f,.7f,.3f))>.00001f)
             throw new BuildFailedException("Body target reflection/coordinate conversion failed.");
-        if(Mathf.Abs(TableContactMath.Lift(.87f,.90f,.88f)-.012f)>.00001f || TableContactMath.Lift(.8f,.81f,.88f)!=0 || TableContactMath.Lift(.92f,.94f,.88f)!=0 || TableContactMath.Lift(float.NaN,.9f,.88f)!=0 || TableContactMath.Lift(.85f,.87f,.88f,.875f)!=0)
-            throw new BuildFailedException("Table contact guard checks failed.");
-        Debug.Log("[BodyAvatar] Body-frame mapping and bounded table-contact checks PASS. Wearer fit acceptance pending.");
+        var rest=new TableRestState();
+        float lift=rest.UpdateSurface(.87f,.91f,.88f,true,.014f);
+        if(!rest.Active || Mathf.Abs(lift-.0105f)>.00001f)throw new BuildFailedException("Rest entry failed.");
+        float a=rest.UpdateSurface(.841f,.91f,.88f,true,.014f);
+        float b=rest.UpdateSurface(.839f,.91f,.88f,true,.014f);
+        if(b<a || Mathf.Abs(b-a-.002f)>.00001f)throw new BuildFailedException("Rest support discontinuity at old 4 cm boundary.");
+        rest.BeginFrame(true,.1f);
+        if(rest.FlatBlend!=1)throw new BuildFailedException("Palm blend failed.");
+        rest.UpdateSurface(.89f,.94f,.88f,true,.014f);
+        if(!rest.Active)throw new BuildFailedException("Rest hysteresis failed.");
+        rest.UpdateSurface(.91f,.96f,.88f,true,.014f);
+        if(rest.Active)throw new BuildFailedException("Raised hand did not release.");
+        if(rest.UpdateSurface(.82f,.87f,.88f,true,.014f)!=0 || rest.FlatBlend!=0)
+            throw new BuildFailedException("Below-table hand must bypass support.");
+        rest.UpdateSurface(.87f,.91f,.88f,false,.014f);
+        if(rest.Active||rest.Offset!=0)throw new BuildFailedException("Ineligible hand acquired support.");
+        rest.UpdateSurface(float.NaN,.91f,.88f,true,.014f);
+        if(rest.Active||rest.Offset!=0)throw new BuildFailedException("Invalid sample retained support.");
+        Debug.Log("[BodyAvatar] Body-frame mapping, rest continuity, hysteresis, release and invalid-data checks PASS. Wearer fit acceptance pending.");
     }
     [MenuItem("Quest Prototype/Body Avatar/Build")]
     public static void Build()
@@ -94,7 +110,24 @@ public static class QuestBodyAvatarSetup
             pose.Joints[i]=new Pose(new Vector3(-.19f,.94f,.35f)+inverse*(left.Joints[i].position-root), inverse*left.Joints[i].rotation);
             mirrored.Joints[i]=MovementReflection.Reflect(pose.Joints[i],Pose.identity);
         }
-        left.Apply(pose,space,true);right.Apply(mirrored,space,true);
+        // Synthetic flat-rest geometry check (does not substitute for runtime tracking or wearer testing).
+        var tableParameters=new SeatedParameters { tableHeight=.88f };
+        foreach(var pair in new[]{(mesh:left,pose:pose),(mesh:right,pose:mirrored)})
+        {
+            var h=pair.pose;int w=XRHandJointID.Wrist.ToIndex();var pivot=h.Joints[w].position;
+            var along=h.Joints[XRHandJointID.MiddleProximal.ToIndex()].position-pivot;
+            var across=h.Joints[XRHandJointID.IndexProximal.ToIndex()].position-h.Joints[XRHandJointID.LittleProximal.ToIndex()].position;
+            var normal=Vector3.Cross(along,across).normalized;if(normal.y<0)normal=-normal;
+            var flat=Quaternion.FromToRotation(normal,Vector3.up);
+            for(int i=0;i<h.Joints.Length;i++)h.Joints[i]=new Pose(pivot+flat*(h.Joints[i].position-pivot),flat*h.Joints[i].rotation);
+            pair.mesh.Apply(h,space,true);
+            float lowest=pair.mesh.LowestOverTable(space,tableParameters);
+            if(!float.IsFinite(lowest))throw new BuildFailedException("Synthetic hand has no table surface.");
+            for(int i=0;i<h.Joints.Length;i++)h.Joints[i].position+=Vector3.up*(tableParameters.tableHeight+.0005f-lowest);
+            pair.mesh.Apply(h,space,true);
+            if(Mathf.Abs(pair.mesh.LowestOverTable(space,tableParameters)-tableParameters.tableHeight-.0005f)>.0001f)
+                throw new BuildFailedException("Hand skin contact translation failed.");
+        }
         var skin=AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/SeatedSkin.mat");
         for(int side=0;side<2;side++)
         {
@@ -104,6 +137,8 @@ public static class QuestBodyAvatarSetup
             var elbow=new Vector3(side==0?-.21f:.21f,.925f,.09f); // Synthetic resting pose, not wearer measurements.
             var arm=new GameObject("Preview arm").AddComponent<ContinuousArmSurface>();arm.Initialize(skin,(side==0?left:right).WristSeamPoints,(side==0?left:right).WristSeamNormals);
             arm.Apply(shoulder,elbow,wristPose.position,wristPose.rotation);
+            arm.ResolveSmallTableOverlap(tableParameters);
+            if(arm.MinimumClearance(tableParameters)<-.001f)throw new BuildFailedException("Synthetic resting arm intersects table.");
         }
         var table=GameObject.CreatePrimitive(PrimitiveType.Cube);table.transform.position=new Vector3(0,.86f,.505f);table.transform.localScale=new Vector3(1.1f,.04f,.65f);
         table.GetComponent<Renderer>().sharedMaterial=AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/SeatedTable.mat");
