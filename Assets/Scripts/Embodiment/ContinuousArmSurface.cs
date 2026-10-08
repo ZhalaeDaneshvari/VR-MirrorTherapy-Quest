@@ -86,15 +86,18 @@ namespace QuestResearch.Embodiment
         public float ResolveSmallTableOverlap(SeatedParameters table)
         {
             float maximum=0;
-            // Correct only shallow penetrations. The exact hand-seam ring stays untouched.
+            // Only active resting support calls this. Elbow support handles the main fit;
+            // finish the underside smoothly, without the old per-vertex 4cm on/off cutoff.
             for(int i=0;i<vertices.Length-Sides;i++)
             {
-                var p=vertices[i];
-                float lift=table.tableHeight+TableContactMath.Clearance-p.y;
-                if(TableContactMath.Inside(p,table)&&lift>0&&lift<=TableContactMath.MaximumLift)
-                {vertices[i].y+=lift;maximum=Mathf.Max(maximum,lift);}
+                var p=vertices[i];float lift=Mathf.Clamp(table.tableHeight+.0005f-p.y,0,.025f);
+                if(TableContactMath.Inside(p,table)&&lift>0)
+                {
+                    vertices[i].y+=lift;maximum=Mathf.Max(maximum,lift);
+                    normals[i]=Vector3.Slerp(normals[i],Vector3.down,Mathf.Clamp01(lift/.005f));
+                }
             }
-            if(maximum>0){mesh.vertices=vertices;mesh.RecalculateBounds();}
+            if(maximum>0){mesh.vertices=vertices;mesh.normals=normals;mesh.RecalculateBounds();}
             return maximum;
         }
         public float MinimumClearance(SeatedParameters table)
