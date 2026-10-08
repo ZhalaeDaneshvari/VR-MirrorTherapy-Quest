@@ -14,11 +14,13 @@ namespace QuestResearch.Embodiment
         [SerializeField] Transform head;
         [SerializeField] Material idleMaterial, hoverMaterial;
         [SerializeField] Font font;
-        Transform panel;
+        Transform panel,content;
+        bool settingsOpen;
+        TextMesh settingsLabel;
         TextMesh title,visibilityLabel;
-        readonly Renderer[] buttons = new Renderer[7];
-        readonly Vector3[] centres = { new Vector3(0,0,0), new Vector3(-.115f,-.09f,0), new Vector3(.115f,-.09f,0), new Vector3(-.15f,-.18f,0),new Vector3(0,-.18f,0),new Vector3(.15f,-.18f,0),new Vector3(0,-.27f,0) };
-        readonly Vector2[] sizes = { new Vector2(.40f,.065f), new Vector2(.21f,.065f), new Vector2(.21f,.065f), new Vector2(.14f,.065f),new Vector2(.14f,.065f),new Vector2(.14f,.065f),new Vector2(.44f,.065f) };
+        readonly Renderer[] buttons = new Renderer[9];
+        readonly Vector3[] centres = { new Vector3(0,0,0), new Vector3(-.115f,-.09f,0), new Vector3(.115f,-.09f,0), new Vector3(-.15f,-.18f,0),new Vector3(0,-.18f,0),new Vector3(.15f,-.18f,0),new Vector3(0,-.27f,0),new Vector3(0,-.36f,0),new Vector3(.32f,.12f,0) };
+        readonly Vector2[] sizes = { new Vector2(.40f,.065f), new Vector2(.21f,.065f), new Vector2(.21f,.065f), new Vector2(.14f,.065f),new Vector2(.14f,.065f),new Vector2(.14f,.065f),new Vector2(.44f,.065f),new Vector2(.44f,.065f),new Vector2(.16f,.06f) };
         readonly PinchLatch leftPinch = new PinchLatch(), rightPinch = new PinchLatch();
         double alignAt = -1;
         bool placed;
@@ -28,27 +30,36 @@ namespace QuestResearch.Embodiment
         {
             panel = new GameObject("Testing controls - gaze and pinch").transform;
             panel.gameObject.SetActive(false);
+            content=new GameObject("Expanded settings").transform;content.SetParent(panel,false);
             title = Label("Setup controls",new Vector3(0,.09f,0),.0035f);
-            string[] labels = { "REALIGN (3 sec)", "Table -2 cm", "Table +2 cm", "Normal", "Left -> Right", "Right -> Left", "Mirror view: both hands" };
+            string[] labels = { "REALIGN (3 sec)", "Table -2 cm", "Table +2 cm", "Normal", "Left -> Right", "Right -> Left", "Swap both sides", "Mirror view: both hands", "Settings" };
             for(int i=0;i<buttons.Length;i++)
             {
                 var cube=GameObject.CreatePrimitive(PrimitiveType.Cube);
-                cube.name=labels[i];cube.transform.SetParent(panel,false);
+                cube.name=labels[i];cube.transform.SetParent(i==8?panel:content,false);
                 cube.transform.localPosition=centres[i]+Vector3.forward*.005f;
                 cube.transform.localScale=new Vector3(sizes[i].x,sizes[i].y,.008f);
                 Destroy(cube.GetComponent<Collider>());
                 buttons[i]=cube.GetComponent<Renderer>();buttons[i].sharedMaterial=idleMaterial;
                 var text=Label(labels[i],centres[i]-Vector3.forward*.002f,i>=3?.0032f:.0045f);
-                if(i==6)visibilityLabel=text;
+                if(i==7)visibilityLabel=text;
+                if(i==8){settingsLabel=text;text.transform.SetParent(panel,false);text.transform.localPosition=centres[i]-Vector3.forward*.002f;}
             }
-            Label("Look at a button, then pinch thumb + index",new Vector3(0,-.34f,0),.0032f);
+            Label("Look at a button, then pinch thumb + index",new Vector3(0,-.43f,0),.0032f);
+            SetSettingsOpen(false);
         }
         TextMesh Label(string text,Vector3 position,float size)
         {
-            var label=new GameObject(text).AddComponent<TextMesh>();label.transform.SetParent(panel,false);
+            var label=new GameObject(text).AddComponent<TextMesh>();label.transform.SetParent(content,false);
             label.transform.localPosition=position;label.text=text;label.font=font;label.fontSize=64;
             label.characterSize=size;label.anchor=TextAnchor.MiddleCenter;label.alignment=TextAlignment.Center;
             label.GetComponent<MeshRenderer>().sharedMaterial=font.material;return label;
+        }
+        public void SetSettingsOpen(bool open)
+        {
+            settingsOpen=open;content.gameObject.SetActive(open);settingsLabel.text=open?"Close":"Settings";
+            if(!open)alignAt=-1;
+            leftPinch.Reset();rightPinch.Reset();
         }
         void Update()
         {
@@ -67,8 +78,12 @@ namespace QuestResearch.Embodiment
             }
             bool click=leftPinch.Update(source.Left)|rightPinch.Update(source.Right);
             int hovered=HitButton(panel.InverseTransformPoint(head.position),panel.InverseTransformDirection(head.forward),centres,sizes);
+            if(!settingsOpen && hovered!=8)hovered=-1;
             for(int i=0;i<buttons.Length;i++)buttons[i].sharedMaterial=i==hovered||i==3+(int)setup.Parameters.movementCondition?hoverMaterial:idleMaterial;
-            visibilityLabel.text=setup.Parameters.showSourceHand?"Mirror view: both hands":"Mirror view: opposite hand only";
+            bool singleSource=setup.Parameters.movementCondition==MovementCondition.LeftToRight || setup.Parameters.movementCondition==MovementCondition.RightToLeft;
+            visibilityLabel.text=!singleSource?"Both hands visible in this mode":setup.Parameters.showSourceHand?"Mirror view: both hands":"Mirror view: opposite hand only";
+            if(click && hovered==8){SetSettingsOpen(!settingsOpen);return;}
+            if(!settingsOpen)return;
             double now=Time.realtimeSinceStartupAsDouble;
             if(alignAt>=0)
             {
@@ -81,7 +96,8 @@ namespace QuestResearch.Embodiment
             if(click && hovered==1)setup.AdjustTableHeight(-.02f);
             if(click && hovered==2)setup.AdjustTableHeight(.02f);
             if(click && hovered>=3 && hovered<=5)setup.SetMovement((MovementCondition)(hovered-3),setup.Parameters.showSourceHand);
-            if(click && hovered==6)setup.SetMovement(setup.Parameters.movementCondition,!setup.Parameters.showSourceHand);
+            if(click && hovered==6)setup.SetMovement(MovementCondition.SwapBoth,true);
+            if(click && hovered==7 && singleSource)setup.SetMovement(setup.Parameters.movementCondition,!setup.Parameters.showSourceHand);
         }
         public static int HitButton(Vector3 origin,Vector3 direction,Vector3[] centres,Vector2[] sizes)
         {
