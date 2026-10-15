@@ -1,4 +1,4 @@
-# Guided PI demonstration — 0.8.0 / code 13
+# Guided PI demonstration — 0.8.1 / code 14
 
 This build is a guided **movement/embodiment demonstration**, not a complete clinical study system. Automatic clinician-hand identification and sensed touch are not implemented. Keep other people's hands out of the headset's hand-tracking view during this demonstration. The provider does not give us a reliable person identity, so we cannot guarantee that it will reject a clinician's hand.
 
@@ -12,9 +12,9 @@ This build is a guided **movement/embodiment demonstration**, not a complete cli
 
 ## In-headset walkthrough
 
-Use head gaze at a button and a thumb/index pinch. Release the pinch between selections.
+Look at a button for two seconds to select it, or use head gaze plus a thumb/index pinch. Move gaze away before selecting the same button again. Release the pinch between selections.
 
-1. **Welcome.** Enter known standing height with the +/- buttons, or leave automatic. Sit comfortably, centered at the table, facing it squarely. Select Begin alignment, then look straight ahead with relaxed shoulders. The entire menu disappears for four seconds; the next page returns when alignment finishes. If the participant cannot pinch comfortably, do not force the movement; researcher-operated controls are a remaining accessibility requirement.
+1. **Welcome.** Enter known standing height with the +/- buttons, or leave automatic. Sit comfortably, centered at the table, facing it squarely. Select Begin alignment, then look straight ahead with relaxed shoulders. The entire menu disappears for four seconds; the next page returns when alignment finishes. Pinching is optional: gaze-hold selection supports people who cannot comfortably pinch. Researcher-operated remote controls remain a future accessibility improvement.
 2. **Fit the table.** Select Enter table height and type the measured height on the keypad (cm or inches), then Save, then adjust the near edge using 2 cm steps. Rest hands gently on the physical table and compare virtual placement. Confirm only when the wearer/helper agrees. If placement is wrong, correct the table instead of using hand support to mask the error. Floor origin must already be correct.
 3. **Check embodiment.** Inspect wrists, elbows and shoulders. Rest, lift and slowly turn each hand within a comfortable range. Optional arm fullness and Table rest ON/OFF are appearance/display settings, not anatomical measurements. Continue is enabled only after both hands and valid body estimates remain available for one second. The wearer must still confirm the fit visually; valid tracking does not prove accurate anatomy.
 4. **Movement demo.** Select Normal, Left to right, Right to left, or Swap both sides, then Start demo. One-way modes show the source and reflected destination hands. During the demonstration only Settings remains. Move each hand slowly and explain which physical side drives which virtual side.
@@ -63,3 +63,10 @@ Unity 6000.6.2f1 Configure and BuildAndPreview succeeded. Existing mapping/inval
 Final APK SHA-256: `7e9b7c095dc868330e54a4cdbf4b3f31b770c2d1b610aad160b09d44768483ee`. ADB installation returned Success and launch was requested successfully. On-device multi-wearer fit, smoothness and the full guided sequence remain pending wearer feedback. Existing SDK warnings do not constitute validated clinician-tracking capability.
 
 On-device startup evidence: the final build's process was running, the Meta body service reported its high-fidelity request accepted, and an ADB headset screenshot visibly showed the new Welcome page in stereo. This verifies startup/UI rendering only; the wearer has not yet confirmed the calibration sequence, arm fit or latency.
+
+
+### Menu accessibility update (0.8.1)
+
+The wearer reported the first menu was not visible/operable. This update gates placement on OpenXR user presence, brings an off-screen Welcome card back after one second, and adds two-second head-gaze dwell selection with a one-activation latch. Dwell and pinch use physical inputs; neither changes movement mapping. Alignment still hides all UI. Wearer confirmation is pending.
+
+0.8.1 Configure and BuildAndPreview passed, including dwell single-activation/rearm tests and alignment visibility assertions. Release APK SHA-256: `222ff05287c4f5b1bd6140ad66db78b71ffa75398410b765a6a83d98f8c4c646`.

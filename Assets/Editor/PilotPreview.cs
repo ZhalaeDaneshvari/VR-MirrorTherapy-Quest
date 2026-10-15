@@ -12,6 +12,12 @@ public static class PilotPreview
     {
         if(!PilotWalkthrough.TryTableHeight("31",true,out float h)||Mathf.Abs(h-.7874f)>.00001f || PilotWalkthrough.TryTableHeight("NaN",false,out _) || PilotWalkthrough.TryTableHeight("-10",false,out _) || PilotWalkthrough.TryTableHeight("200",false,out _))
             throw new BuildFailedException("Table numeric entry conversion/range validation failed.");
+        var dwell=new PilotDwell();int count=0;
+        for(int i=0;i<60;i++)if(dwell.Update(0,.1f))count++;
+        if(count!=1)throw new BuildFailedException("Dwell repeated while gaze was held.");
+        dwell.Block(0);for(int i=0;i<30;i++)if(dwell.Update(0,.1f))throw new BuildFailedException("Dwell crossed page without release.");
+        dwell.Update(-1,.1f);count=0;for(int i=0;i<25;i++)if(dwell.Update(0,.1f))count++;
+        if(count!=1)throw new BuildFailedException("Dwell did not rearm after gaze exit.");
         var scene=EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
         var camera=new GameObject("Pilot preview camera").AddComponent<Camera>();
         camera.fieldOfView=65;camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(.60f,.64f,.67f);

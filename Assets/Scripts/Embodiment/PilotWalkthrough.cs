@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using UnityEngine;
+using UnityEngine.XR.OpenXR;
 using QuestResearch.Hands;
 using QuestResearch.BodyCalibration;
 
@@ -37,6 +38,9 @@ namespace QuestResearch.Embodiment
         string affected="Not specified",notice="";
         double alignAt=-1,stableSince=-1,nextText;
         StreamWriter events;
+        readonly PilotDwell dwell=new PilotDwell();
+        double outsideSince=-1;
+        int lastHovered=-1;
         public Page CurrentPage=>page;
         public bool AlignmentUIHidden=>page==Page.Aligning && !panel.gameObject.activeSelf;
         public void Configure(SeatedSetup s,HandTrackingSource h,BodyTrackingProbe b,Transform camera,Material idle,Material hover,Font f)
@@ -86,7 +90,7 @@ namespace QuestResearch.Embodiment
         }
         public void Show(Page next)
         {
-            page=next;left.Reset();right.Reset();nextText=0;
+            page=next;left.Reset();right.Reset();dwell.Block(lastHovered);nextText=0;
             if(card==null)return;
             card.gameObject.SetActive(next!=Page.Running && next!=Page.Aligning);
             quickButton.gameObject.SetActive(next==Page.Running);quickText.gameObject.SetActive(next==Page.Running);
@@ -129,7 +133,7 @@ namespace QuestResearch.Embodiment
         void Update()
         {
             if(panel==null)return;
-            if(!Application.isFocused || !setup.HeadTracked)
+            if(!Application.isFocused || !setup.HeadTracked || !OpenXRUtility.IsUserPresent)
             {
                 panel.gameObject.SetActive(false);placed=false;stableSince=-1;left.Reset();right.Reset();
                 if(wasFocused){Record("tracking_or_focus_lost");demoActive=false;page=Page.Welcome;alignAt=-1;wasFocused=false;}
@@ -146,6 +150,13 @@ namespace QuestResearch.Embodiment
                 }
                 return;
             }
+            // A launch on an unworn headset must not leave the welcome card behind the wearer.
+            if(page==Page.Welcome && placed && Vector3.Angle(head.forward,panel.position-head.position)>40)
+            {
+                if(outsideSince<0)outsideSince=Time.realtimeSinceStartupAsDouble;
+                if(Time.realtimeSinceStartupAsDouble-outsideSince>1){placed=false;outsideSince=-1;}
+            }
+            else outsideSince=-1;
             if(!placed)Place();panel.gameObject.SetActive(true);
             if(page!=Page.Welcome && !setup.Aligned){demoActive=false;Show(Page.Welcome);}
             if(Time.realtimeSinceStartupAsDouble>=nextText){nextText=Time.realtimeSinceStartupAsDouble+.2;RefreshText();}
@@ -155,20 +166,25 @@ namespace QuestResearch.Embodiment
             {
                 int hit=SeatedTestControls.HitButton(origin,direction,quickCentre,quickSize);
                 quickButton.GetComponent<Renderer>().sharedMaterial=hit==0?hoverMaterial:idleMaterial;
-                if(click&&hit==0){Record("demo_pause");Show(Page.Settings);}return;
+                lastHovered=hit==0?16:-1;
+                bool dwellClick=dwell.Update(lastHovered,Time.unscaledDeltaTime);
+                if((click||dwellClick)&&hit==0){Record("demo_pause");Show(Page.Settings);}return;
             }
             int hovered=SeatedTestControls.HitButton(origin,direction,centres,sizes);
+            lastHovered=hovered>=0&&available[hovered]?hovered:-1;
+            bool selected=dwell.Update(lastHovered,Time.unscaledDeltaTime);
             for(int i=0;i<16;i++)renderers[i].sharedMaterial=i==hovered&&available[i]?hoverMaterial:idleMaterial;
-            if(click&&hovered>=0&&available[hovered])Act(hovered);
+            if(lastHovered>=0)status.text="Hold gaze to select: "+Mathf.CeilToInt((1-dwell.Progress)*2)+" seconds\nOr pinch thumb + index.";
+            if((click||selected)&&hovered>=0&&available[hovered])Act(hovered);
         }
-        void Set(int i,string label,bool enabled=true){texts[i].text=label;available[i]=enabled;texts[i].color=enabled?Color.white:Color.gray;buttons[i].gameObject.SetActive(label.Length>0);texts[i].gameObject.SetActive(label.Length>0);}
+        void Set(int i,string label,bool enabled=true){texts[i].text=label;available[i]=enabled&&label.Length>0;texts[i].color=enabled?Color.white:Color.gray;buttons[i].gameObject.SetActive(label.Length>0);texts[i].gameObject.SetActive(label.Length>0);}
         void RefreshText()
         {
             if(heading==null)return;
             for(int i=0;i<16;i++)Set(i,"");
             float height=setup==null?.74f:setup.Parameters.tableHeight;
             string mode=setup==null?"Normal":setup.Parameters.movementCondition.ToString();
-            status.text="Look at a button, then pinch thumb + index.\n"+notice;
+            status.text="Look at a button for 2 seconds, or pinch thumb + index.\n"+notice;
             switch(page)
             {
                 case Page.Welcome:
