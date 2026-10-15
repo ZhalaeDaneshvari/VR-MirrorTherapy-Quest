@@ -94,3 +94,9 @@ Open Settings > Surface height, then use Lower 1 cm / Raise 1 cm. Changes apply 
 The same controls are present in initial setup. On a bed, match the surface where the resting arms actually lie: a mattress is deformable, while this prototype still represents a single horizontal plane. It does not sense or reconstruct mattress compression. Moving to a new location requires normal alignment and surface confirmation.
 
 0.8.3 build and existing validation passed; the surface-height page was visually inspected. ADB install returned Success. APK SHA-256: `965f9fe637059f0769f85f5ad3c4c2a24caaab54bc84712e6448317c4e495f37`. Surface fit at the new bed location remains a wearer check.
+
+## Alignment recovery (0.8.4 / Android 17)
+
+A headset report showed alignment rejecting the combined head/floor-origin check and returning silently to Welcome. Begin alignment now requests Floor tracking again, with bounded retries during the four-second hidden-menu interval. Alignment still requires an actual Floor origin; device-relative tracking is never treated as a measured floor. The failure screen now displays the reason prominently and advises resetting the Quest floor/boundary when floor tracking is unavailable. Diagnostic logs distinguish tracking status, supported origins, current origin and request acceptance. A failed realignment invalidates the old alignment. Saved support-surface height is preserved.
+
+Hardware acceptance: select Begin alignment while seated and looking ahead. Expect Fit the support surface after four seconds. If Alignment needs attention appears, record its message and inspect `[Seated]` logs; restore Quest floor/boundary setup before retrying. This change does not establish the physical floor height or table position automatically.

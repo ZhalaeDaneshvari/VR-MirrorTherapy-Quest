@@ -36,8 +36,8 @@ namespace QuestResearch.Embodiment
         Page page=Page.Welcome;
         bool placed,wasFocused=true,demoActive;
         float knownHeight;
-        string affected="Not specified",notice="";
-        double alignAt=-1,stableSince=-1,nextText;
+        string affected="Not specified",notice="",alignmentFailure="";
+        double alignAt=-1,stableSince=-1,nextText,nextFloorRetry;
         StreamWriter events;
         readonly PilotDwell dwell=new PilotDwell();
         double outsideSince=-1;
@@ -126,7 +126,9 @@ namespace QuestResearch.Embodiment
         }
         public void BeginAlignment()
         {
-            demoActive=false;Record("alignment_requested");
+            demoActive=false;notice="";alignmentFailure="";Record("alignment_requested");
+            if(setup!=null)setup.PrepareFloorOrigin();
+            nextFloorRetry=Time.realtimeSinceStartupAsDouble+1;
             // Hide ALL controls for the whole alignment interval. Do not require looking at a countdown.
             alignAt=Time.realtimeSinceStartupAsDouble+4;
             Show(Page.Aligning);
@@ -153,9 +155,12 @@ namespace QuestResearch.Embodiment
             if(HandsReady&&BodyReady){if(stableSince<0)stableSince=Time.realtimeSinceStartupAsDouble;}else stableSince=-1;
             if(page==Page.Aligning)
             {
+                if(Time.realtimeSinceStartupAsDouble>=nextFloorRetry && Time.realtimeSinceStartupAsDouble<alignAt-1)
+                {setup.PrepareFloorOrigin();nextFloorRetry=Time.realtimeSinceStartupAsDouble+1;}
                 if(Time.realtimeSinceStartupAsDouble>=alignAt)
                 {
                     alignAt=-1;setup.Align();Record(setup.Aligned?"alignment_complete":"alignment_failed");
+                    alignmentFailure=setup.Aligned?"":setup.Message;
                     placed=false;Show(setup.Aligned?Page.Table:Page.Welcome);
                 }
                 return;
@@ -168,7 +173,7 @@ namespace QuestResearch.Embodiment
             }
             else outsideSince=-1;
             if(!placed)Place();panel.gameObject.SetActive(true);
-            if(page!=Page.Welcome && !setup.Aligned){demoActive=false;Show(Page.Welcome);}
+            if(page!=Page.Welcome && !setup.Aligned){demoActive=false;notice=setup.Message;Show(Page.Welcome);}
             if(Time.realtimeSinceStartupAsDouble>=nextText){nextText=Time.realtimeSinceStartupAsDouble+.2;RefreshText();}
             bool click=left.Update(hands.Left)|right.Update(hands.Right);
             var origin=panel.InverseTransformPoint(head.position);var direction=panel.InverseTransformDirection(head.forward);
@@ -202,6 +207,7 @@ namespace QuestResearch.Embodiment
                 case Page.Welcome:
                     heading.text="1 / 4   Welcome";
                     instructions.text="Sit comfortably at a real table.\nKeep only the wearer's hands in view.\nBegin hides this menu for 4 seconds:\nlook straight ahead, with shoulders relaxed.\nHeight: "+(knownHeight>0?(knownHeight*100).ToString("F0")+" cm (standing height)":"automatic estimate - verify fit");
+                    if(alignmentFailure.Length>0){heading.text="Alignment needs attention";instructions.text=alignmentFailure+"\n\nThen select Begin alignment again.";}
                     Set(0,"Height -5 cm");Set(1,"Height +5 cm");Set(2,"Use automatic");Set(3,"Begin alignment");break;
                 case Page.Table:
                     heading.text="2 / 4   Fit the support surface";

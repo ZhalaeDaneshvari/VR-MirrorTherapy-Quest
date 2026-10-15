@@ -52,7 +52,7 @@ public static class QuestBodyAvatarSetup
         QualitySettings.shadows=ShadowQuality.All;QualitySettings.shadowResolution=ShadowResolution.Medium;QualitySettings.shadowDistance=4;
         origin.Camera.backgroundColor=new Color(.60f,.64f,.67f);
         EditorSceneManager.SaveScene(scene);
-        PlayerSettings.productName="Quest Body Driven Avatar";PlayerSettings.bundleVersion="0.8.3";PlayerSettings.Android.bundleVersionCode=16;
+        PlayerSettings.productName="Quest Body Driven Avatar";PlayerSettings.bundleVersion="0.8.4";PlayerSettings.Android.bundleVersionCode=17;
         PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android,AppId);
         EditorBuildSettings.scenes=new[]{new EditorBuildSettingsScene(ScenePath,true)};
         AssetDatabase.SaveAssets();Validate();
