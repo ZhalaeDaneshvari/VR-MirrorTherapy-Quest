@@ -1,4 +1,4 @@
-# Guided PI demonstration — 0.8.1 / code 14
+# Guided PI demonstration — 0.8.2 / code 15
 
 This build is a guided **movement/embodiment demonstration**, not a complete clinical study system. Automatic clinician-hand identification and sensed touch are not implemented. Keep other people's hands out of the headset's hand-tracking view during this demonstration. The provider does not give us a reliable person identity, so we cannot guarantee that it will reject a clinician's hand.
 
@@ -70,3 +70,18 @@ On-device startup evidence: the final build's process was running, the Meta body
 The wearer reported the first menu was not visible/operable. This update gates placement on OpenXR user presence, brings an off-screen Welcome card back after one second, and adds two-second head-gaze dwell selection with a one-activation latch. Dwell and pinch use physical inputs; neither changes movement mapping. Alignment still hides all UI. Wearer confirmation is pending.
 
 0.8.1 Configure and BuildAndPreview passed, including dwell single-activation/rearm tests and alignment visibility assertions. Release APK SHA-256: `222ff05287c4f5b1bd6140ad66db78b71ffa75398410b765a6a83d98f8c4c646`.
+
+### Table blocking and gaze feedback (0.8.2)
+
+The wearer accepted the accessible alignment flow but reported arm penetration, no circular dwell feedback, and menus occluded by the table. This checkpoint adds:
+
+- An unconditional display-mesh table constraint after arm generation. Every triangle whose horizontal bounds overlap the tabletop has all three vertices projected to at least 1 mm above its top. Unlike the former shallow rest adjustment, there is no depth cap and it runs even when optional palm-rest assistance is OFF. The conservative footprint test also covers triangle interiors at edges, not just sampled vertices.
+- A rigid correction of a partially intersecting displayed hand, using its deformed surface minimum, to keep the wrist seam above the table. Raw physical poses and mapped targets remain unchanged. Hands entirely below the tabletop retain their actual pose and occlusion; the corresponding arm is withheld to avoid a visibly intersecting bridge. This is a deliberate display policy, not physics or sensed contact.
+- A turquoise circular fill for gaze selection, including Settings, using the existing two-second dwell timer.
+- Stereo-compatible overlay rendering for the entire menu and selection ring, with explicit background/button/text ordering. The world/table cannot depth-occlude these controls; all remain hidden during alignment.
+
+A strict display constraint can visibly flatten/lift geometry when calibration or body estimates are wrong. It does not make those estimates anatomically correct. Large corrections should trigger refitting, not be treated as measured movement. The existing correction diagnostics remain separate from raw tracking. No claim of universal naturalness or physical collision detection is made.
+
+Validation includes 500 deterministic triangle/table cases, including conservative edge-crossing coverage, plus an occluder render test and preview of the circular selection indicator. Headset appearance still needs wearer confirmation after installation.
+
+0.8.2 Configure and BuildAndPreview passed. The final occlusion/ring preview was visually inspected; an additional brightness assertion protects text readability. Final APK SHA-256: `98bfcdc1543b96cdcfbc71f5691c829af44a0a479761e7da49c5874d2866ad38`. ADB installation returned Success; wearer appearance confirmation remains pending.

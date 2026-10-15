@@ -52,7 +52,7 @@ public static class QuestBodyAvatarSetup
         QualitySettings.shadows=ShadowQuality.All;QualitySettings.shadowResolution=ShadowResolution.Medium;QualitySettings.shadowDistance=4;
         origin.Camera.backgroundColor=new Color(.60f,.64f,.67f);
         EditorSceneManager.SaveScene(scene);
-        PlayerSettings.productName="Quest Body Driven Avatar";PlayerSettings.bundleVersion="0.8.1";PlayerSettings.Android.bundleVersionCode=14;
+        PlayerSettings.productName="Quest Body Driven Avatar";PlayerSettings.bundleVersion="0.8.2";PlayerSettings.Android.bundleVersionCode=15;
         PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android,AppId);
         EditorBuildSettings.scenes=new[]{new EditorBuildSettingsScene(ScenePath,true)};
         AssetDatabase.SaveAssets();Validate();
@@ -67,6 +67,16 @@ public static class QuestBodyAvatarSetup
         var normal=BodyArmTargets.ToBody(physical,false,frame);var reflected=BodyArmTargets.ToBody(physical,true,frame);
         if(Vector3.Distance(normal,new Vector3(-.2f,.7f,.3f))>.00001f||Vector3.Distance(reflected,new Vector3(.2f,.7f,.3f))>.00001f)
             throw new BuildFailedException("Body target reflection/coordinate conversion failed.");
+        // Edge-crossing triangles must be blocked even if their vertices begin outside the footprint.
+        var table=new SeatedParameters();var random=new System.Random(943);
+        for(int n=0;n<500;n++)
+        {
+            var points=new Vector3[3];
+            for(int j=0;j<3;j++)points[j]=new Vector3((float)random.NextDouble()*2-1,(float)random.NextDouble(),(float)random.NextDouble());
+            bool overlap=ContinuousArmSurface.OverlapsTable(points[0],points[1],points[2],table);
+            ContinuousArmSurface.EnforceTableTop(points,new[]{0,1,2},table);
+            if(overlap)foreach(var point in points)if(point.y<table.tableHeight+.00099f)throw new BuildFailedException("Hard tabletop constraint left an intersecting triangle.");
+        }
         var rest=new TableRestState();
         float lift=rest.UpdateSurface(.87f,.91f,.88f,true,.014f);
         if(!rest.Active || Mathf.Abs(lift-.0105f)>.00001f)throw new BuildFailedException("Rest entry failed.");

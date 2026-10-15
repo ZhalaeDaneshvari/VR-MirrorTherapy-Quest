@@ -35,6 +35,19 @@ public static class PilotPreview
             camera.Render();RenderTexture.active=texture;png.ReadPixels(new Rect(0,0,1280,960),0,0);png.Apply();
             File.WriteAllBytes("/private/tmp/quest-pilot-"+page+".png",png.EncodeToPNG());
         }
+        pilot.Show(PilotWalkthrough.Page.Welcome);
+        var ring=panel.GetComponentInChildren<GazeProgressRing>(true);
+        ring.SetProgress(new Vector3(.275f,-.205f,-.02f),.65f,true);
+        camera.Render();RenderTexture.active=texture;png.ReadPixels(new Rect(0,0,1280,960),0,0);png.Apply();
+        Color reference=png.GetPixel(640,480);
+        var occluder=GameObject.CreatePrimitive(PrimitiveType.Cube);occluder.transform.position=new Vector3(0,0,.3f);occluder.transform.localScale=new Vector3(2,2,.05f);
+        camera.Render();RenderTexture.active=texture;png.ReadPixels(new Rect(0,0,1280,960),0,0);png.Apply();
+        Color actual=png.GetPixel(640,480);
+        if(Vector4.Distance(reference,actual)>.01f)throw new BuildFailedException("Scene geometry occluded overlay UI.");
+        int bright=0;
+        foreach(var pixel in png.GetPixels())if(pixel.r>.8f&&pixel.g>.8f&&pixel.b>.8f)bright++;
+        if(bright<500)throw new BuildFailedException("Overlay text lost its readable white color.");
+        File.WriteAllBytes("/private/tmp/quest-pilot-overlay-ring.png",png.EncodeToPNG());
         pilot.BeginAlignment();
         if(!pilot.AlignmentUIHidden || panel.GetComponentsInChildren<Renderer>().Length!=0)
             throw new BuildFailedException("Alignment must hide all menu renderers.");

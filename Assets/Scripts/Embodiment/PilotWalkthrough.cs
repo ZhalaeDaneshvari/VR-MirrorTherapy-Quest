@@ -19,7 +19,8 @@ namespace QuestResearch.Embodiment
         [SerializeField] Material idleMaterial, hoverMaterial;
         [SerializeField] Font font;
         Transform panel,card,quickButton;
-        Material cardMaterial;
+        Material cardMaterial,uiIdle,uiHover,uiText;
+        GazeProgressRing progressRing;
         TextMesh heading,instructions,status,quickText;
         readonly Transform[] buttons=new Transform[16];
         readonly TextMesh[] texts=new TextMesh[16];
@@ -58,10 +59,18 @@ namespace QuestResearch.Embodiment
         }
         public void BuildUI()
         {
+            var overlay=Resources.Load<Shader>("PilotOverlay");
+            uiIdle=new Material(overlay){color=idleMaterial.color,renderQueue=4010};
+            uiHover=new Material(overlay){color=hoverMaterial.color,renderQueue=4010};
+            uiText=new Material(overlay){mainTexture=font.material.mainTexture,renderQueue=4020};
+            uiText.SetFloat("_AlphaOnly",1);
+            Font.textureRebuilt+=RefreshFontTexture;
             panel=new GameObject("Pilot walkthrough UI").transform;
+            progressRing=new GameObject("Gaze selection progress").AddComponent<GazeProgressRing>();
+            progressRing.transform.SetParent(panel,false);progressRing.Initialize(overlay);
             card=new GameObject("Guided setup card").transform;card.SetParent(panel,false);
             var backdrop=Button("Calibration card background",new Vector3(0,-.04f,.025f),new Vector2(.76f,.76f),card);
-            cardMaterial=new Material(idleMaterial){color=new Color(.055f,.075f,.09f)};
+            cardMaterial=new Material(overlay){color=new Color(.055f,.075f,.09f),renderQueue=4000};
             backdrop.GetComponent<Renderer>().sharedMaterial=cardMaterial;
             heading=Label("",new Vector3(0,.245f,-.008f),.0044f,card);
             instructions=Label("",new Vector3(0,.095f,-.008f),.0034f,card);
@@ -80,18 +89,19 @@ namespace QuestResearch.Embodiment
         {
             var go=GameObject.CreatePrimitive(PrimitiveType.Cube);go.name=name;go.transform.SetParent(parent,false);
             go.transform.localPosition=position+Vector3.forward*.004f;go.transform.localScale=new Vector3(size.x,size.y,.008f);
-            Destroy(go.GetComponent<Collider>());go.GetComponent<Renderer>().sharedMaterial=idleMaterial;return go.transform;
+            Destroy(go.GetComponent<Collider>());go.GetComponent<Renderer>().sharedMaterial=uiIdle;return go.transform;
         }
         TextMesh Label(string text,Vector3 position,float size,Transform parent)
         {
             var t=new GameObject("Pilot label").AddComponent<TextMesh>();t.transform.SetParent(parent,false);t.transform.localPosition=position;
             t.text=text;t.font=font;t.fontSize=64;t.characterSize=size;t.anchor=TextAnchor.MiddleCenter;t.alignment=TextAlignment.Center;
-            t.GetComponent<Renderer>().sharedMaterial=font.material;return t;
+            t.GetComponent<Renderer>().sharedMaterial=uiText;return t;
         }
         public void Show(Page next)
         {
             page=next;left.Reset();right.Reset();dwell.Block(lastHovered);nextText=0;
             if(card==null)return;
+            progressRing.SetProgress(Vector3.zero,0,false);
             card.gameObject.SetActive(next!=Page.Running && next!=Page.Aligning);
             quickButton.gameObject.SetActive(next==Page.Running);quickText.gameObject.SetActive(next==Page.Running);
             panel.gameObject.SetActive(next!=Page.Aligning);
@@ -165,15 +175,17 @@ namespace QuestResearch.Embodiment
             if(page==Page.Running)
             {
                 int hit=SeatedTestControls.HitButton(origin,direction,quickCentre,quickSize);
-                quickButton.GetComponent<Renderer>().sharedMaterial=hit==0?hoverMaterial:idleMaterial;
+                quickButton.GetComponent<Renderer>().sharedMaterial=hit==0?uiHover:uiIdle;
                 lastHovered=hit==0?16:-1;
                 bool dwellClick=dwell.Update(lastHovered,Time.unscaledDeltaTime);
+                progressRing.SetProgress(quickCentre[0]+new Vector3(.068f,0,-.02f),dwell.Progress,hit==0);
                 if((click||dwellClick)&&hit==0){Record("demo_pause");Show(Page.Settings);}return;
             }
             int hovered=SeatedTestControls.HitButton(origin,direction,centres,sizes);
             lastHovered=hovered>=0&&available[hovered]?hovered:-1;
             bool selected=dwell.Update(lastHovered,Time.unscaledDeltaTime);
-            for(int i=0;i<16;i++)renderers[i].sharedMaterial=i==hovered&&available[i]?hoverMaterial:idleMaterial;
+            progressRing.SetProgress(lastHovered>=0?centres[lastHovered]+new Vector3(sizes[lastHovered].x*.5f-.024f,0,-.02f):Vector3.zero,dwell.Progress,lastHovered>=0);
+            for(int i=0;i<16;i++)renderers[i].sharedMaterial=i==hovered&&available[i]?uiHover:uiIdle;
             if(lastHovered>=0)status.text="Hold gaze to select: "+Mathf.CeilToInt((1-dwell.Progress)*2)+" seconds\nOr pinch thumb + index.";
             if((click||selected)&&hovered>=0&&available[hovered])Act(hovered);
         }
@@ -275,6 +287,7 @@ namespace QuestResearch.Embodiment
             catch(Exception ex) when(ex is IOException||ex is UnauthorizedAccessException){notice="Demo event log failed";Debug.LogWarning("[Pilot] "+ex.Message);events=null;}
         }
         void OnApplicationPause(bool paused){if(paused){Record("app_paused");demoActive=false;alignAt=-1;page=Page.Welcome;placed=false;wasFocused=false;if(panel!=null)panel.gameObject.SetActive(false);}}
-        void OnDestroy(){Record("app_stop");events?.Dispose();if(panel!=null)Destroy(panel.gameObject);if(cardMaterial!=null)Destroy(cardMaterial);}
+        void RefreshFontTexture(Font updated){if(updated==font&&uiText!=null)uiText.mainTexture=font.material.mainTexture;}
+        void OnDestroy(){Font.textureRebuilt-=RefreshFontTexture;Record("app_stop");events?.Dispose();if(panel!=null)Destroy(panel.gameObject);if(cardMaterial!=null)Destroy(cardMaterial);if(uiIdle!=null)Destroy(uiIdle);if(uiHover!=null)Destroy(uiHover);if(uiText!=null)Destroy(uiText);}
     }
 }
