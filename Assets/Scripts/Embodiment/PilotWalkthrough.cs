@@ -275,7 +275,8 @@ namespace QuestResearch.Embodiment
                     heading.text="Manual forearm touch";
                     instructions.text="Clinician strokes the REAL "+(touch==null?"Left":touch.PhysicalSide.ToString())+" forearm.\nVisual stroke: "+(touch==null?"Right":((PhysicalHand)touch.VisualSide).ToString())+" forearm, elbow to wrist.\nRest palms down; follow the 3-second cue.\n"+(touch==null?4:touch.Duration).ToString("F0")+" second stroke. No automatic touch sensing.";
                     Set(0,"Real side: "+(touch==null?"Left":touch.PhysicalSide.ToString()));Set(1,touch==null||touch.CrossLimb?"Cross-limb":"Congruent");
-                    Set(2,"Duration -1 sec");Set(3,"Duration +1 sec");Set(4,"Start countdown",FitReady);Set(5,"Back");break;
+                    Set(2,"Duration -1 sec");Set(3,"Duration +1 sec");if(notice.Length>0)instructions.text=notice+"\n\nRelease pinch and rest both hands flat.\nThen select Start countdown again.";
+                    Set(4,"Start countdown");Set(5,"Back");break;
                 case Page.Settings:
                     heading.text="Pilot settings";
                     instructions.text="Mode: "+mode+"\nAffected side: "+affected+"\nRecalibration hides the menu for 4 seconds.\nClinician hand tracking is not available.\nDo not present this as an automated touch trial.";

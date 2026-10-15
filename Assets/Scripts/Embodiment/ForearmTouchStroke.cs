@@ -9,7 +9,7 @@ namespace QuestResearch.Embodiment
     // A clinician-followed instruction and visual stimulus, never evidence of physical touch.
     public sealed class ForearmTouchStroke : MonoBehaviour
     {
-        public enum Phase { Idle, Countdown, Stroking }
+        public enum Phase { Idle, Preparing, Countdown, Stroking }
         public Phase State {get;private set;}
         public bool Active=>State!=Phase.Idle;
         public PhysicalHand PhysicalSide {get;private set;}=PhysicalHand.Left;
@@ -26,7 +26,7 @@ namespace QuestResearch.Embodiment
         }
         SeatedSetup setup;HandTrackingSource hands;SeatedAvatarDisplay avatar;
         Transform marker;Material material;AudioSource audioSource;AudioClip tick,go,end;
-        double requestedAt,strokeAt,lastFrame,nextSample;int lastCount=-1;
+        double requestedAt,strokeAt,lastFrame,nextSample,preparationAt,readySince=-1;int lastCount=-1;
         MovementCondition movement;bool showSource;string strokeId;
         public void Configure(SeatedSetup s,HandTrackingSource h,SeatedAvatarDisplay a,Material skin)
         {
@@ -50,12 +50,18 @@ namespace QuestResearch.Embodiment
         }
         public static int CountdownAt(double elapsed)=>Mathf.Clamp(3-(int)Math.Floor(Math.Max(0,elapsed)),0,3);
         public static float ProgressAt(double elapsed,float duration)=>Mathf.Clamp01((float)(elapsed/duration));
-        bool Ready(out string reason)
+        bool BaseReady(out string reason)
         {
             reason="Align and confirm the table first.";
             if(setup==null||avatar==null||!avatar.HasBodyFit||!setup.Aligned||!setup.Parameters.tableAlignmentConfirmed||!setup.HeadTracked)return false;
-            reason="Keep both hands tracked, flat and resting on the table.";
+            reason="Headset must be worn and app active.";
             if(!Application.isFocused||!OpenXRUtility.IsUserPresent)return false;
+            reason="";return true;
+        }
+        bool Ready(out string reason)
+        {
+            if(!BaseReady(out reason))return false;
+            reason="Rest both hands flat and keep them visible.";
             for(int side=0;side<2;side++)
             {
                 var hand=side==0?hands.Left:hands.Right;
@@ -72,11 +78,18 @@ namespace QuestResearch.Embodiment
         public bool StartStroke()
         {
             if(Active)return false;
-            if(!Ready(out string reason)){Message=reason;Emit("touch_start_rejected",reason);return false;}
+            if(!BaseReady(out string reason)){Message=reason;Emit("touch_start_rejected",reason);return false;}
             movement=setup.Parameters.movementCondition;showSource=setup.Parameters.showSourceHand;
-            strokeId=Guid.NewGuid().ToString("N");requestedAt=lastFrame=Time.realtimeSinceStartupAsDouble;
-            State=Phase.Countdown;lastCount=3;Message="Touch begins in 3";audioSource.PlayOneShot(tick);
-            Emit("touch_countdown_started");return true;
+            strokeId=Guid.NewGuid().ToString("N");preparationAt=lastFrame=Time.realtimeSinceStartupAsDouble;readySince=-1;
+            State=Phase.Preparing;Message="Release pinch; rest both hands flat.";
+            Emit("touch_preparation_started");return true;
+        }
+        // Clock-based stable-pose gate: pinching Start is not itself a resting pose.
+        public static bool StablePose(bool ready,double now,ref double since)
+        {
+            if(!ready){since=-1;return false;}
+            if(since<0)since=now;
+            return now-since>=.5;
         }
         [BeforeRenderOrder(10001)]
         void Render()
@@ -84,8 +97,23 @@ namespace QuestResearch.Embodiment
             if(!Active)return;
             double now=Time.realtimeSinceStartupAsDouble;
             if(now-lastFrame>.25){Stop("Rendering interrupted; restart the stroke.");return;}lastFrame=now;
-            if(!Ready(out string reason)){Stop(reason);return;}
+            if(!BaseReady(out string reason)){Stop(reason);return;}
             if(setup.Parameters.movementCondition!=movement||setup.Parameters.showSourceHand!=showSource){Stop("Movement mapping changed.");return;}
+            if(State==Phase.Preparing)
+            {
+                if(now-preparationAt>20){Stop("Hands not ready. Rest them flat and retry.");return;}
+                bool ready=Ready(out reason);
+                Message=ready?"Hold still; countdown will begin...":reason;
+                if(!StablePose(ready,now,ref readySince))return;
+                State=Phase.Countdown;requestedAt=now;lastCount=3;Message="Touch begins in 3";
+                audioSource.PlayOneShot(tick);Emit("touch_countdown_started");return;
+            }
+            if(!Ready(out reason))
+            {
+                if(State==Phase.Countdown)
+                {State=Phase.Preparing;readySince=-1;Message=reason;audioSource.Stop();Emit("touch_countdown_reset",reason);return;}
+                Stop(reason);return;
+            }
             if(State==Phase.Countdown)
             {
                 int count=CountdownAt(now-requestedAt);
@@ -102,7 +130,7 @@ namespace QuestResearch.Embodiment
         public void Stop(string reason="Stopped by researcher")
         {
             if(!Active)return;
-            Emit(State==Phase.Stroking?"visual_touch_stop":"touch_countdown_cancelled",reason);
+            Emit(State==Phase.Stroking?"visual_touch_stop":State==Phase.Preparing?"touch_preparation_cancelled":"touch_countdown_cancelled",reason);
             State=Phase.Idle;if(marker!=null)marker.gameObject.SetActive(false);Message="Stopped: "+reason;
             if(audioSource!=null)audioSource.Stop();
         }

@@ -52,7 +52,7 @@ public static class QuestBodyAvatarSetup
         QualitySettings.shadows=ShadowQuality.All;QualitySettings.shadowResolution=ShadowResolution.Medium;QualitySettings.shadowDistance=4;
         origin.Camera.backgroundColor=new Color(.60f,.64f,.67f);
         EditorSceneManager.SaveScene(scene);
-        PlayerSettings.productName="Quest Body Driven Avatar";PlayerSettings.bundleVersion="0.10.0";PlayerSettings.Android.bundleVersionCode=20;
+        PlayerSettings.productName="Quest Body Driven Avatar";PlayerSettings.bundleVersion="0.10.1";PlayerSettings.Android.bundleVersionCode=21;
         PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android,AppId);
         EditorBuildSettings.scenes=new[]{new EditorBuildSettingsScene(ScenePath,true)};
         AssetDatabase.SaveAssets();Validate();
@@ -62,6 +62,11 @@ public static class QuestBodyAvatarSetup
     public static void Validate()
     {
         QuestProjectSetup.Validate();
+        double readySince=-1;
+        if(ForearmTouchStroke.StablePose(false,0,ref readySince)||ForearmTouchStroke.StablePose(true,1,ref readySince)
+            ||ForearmTouchStroke.StablePose(true,1.49,ref readySince)||!ForearmTouchStroke.StablePose(true,1.5,ref readySince)
+            ||ForearmTouchStroke.StablePose(false,1.6,ref readySince)||readySince!=-1||ForearmTouchStroke.StablePose(true,2,ref readySince))
+            throw new BuildFailedException("Touch preparation must wait for a fresh half-second stable pose after pinch/loss.");
         if(ForearmTouchStroke.CountdownAt(0)!=3||ForearmTouchStroke.CountdownAt(.999)!=3||ForearmTouchStroke.CountdownAt(1)!=2||ForearmTouchStroke.CountdownAt(2)!=1||ForearmTouchStroke.CountdownAt(3)!=0
             ||ForearmTouchStroke.ProgressAt(-1,4)!=0||ForearmTouchStroke.ProgressAt(2,4)!=.5f||ForearmTouchStroke.ProgressAt(5,4)!=1)
             throw new BuildFailedException("Touch countdown/progress boundary checks failed.");
