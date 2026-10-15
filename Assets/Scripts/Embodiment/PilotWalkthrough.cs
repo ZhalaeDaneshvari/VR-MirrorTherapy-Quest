@@ -204,9 +204,9 @@ namespace QuestResearch.Embodiment
                     instructions.text="Sit comfortably at a real table.\nKeep only the wearer's hands in view.\nBegin hides this menu for 4 seconds:\nlook straight ahead, with shoulders relaxed.\nHeight: "+(knownHeight>0?(knownHeight*100).ToString("F0")+" cm (standing height)":"automatic estimate - verify fit");
                     Set(0,"Height -5 cm");Set(1,"Height +5 cm");Set(2,"Use automatic");Set(3,"Begin alignment");break;
                 case Page.Table:
-                    heading.text="2 / 4   Fit the table";
-                    instructions.text="Helper: measure floor to tabletop.\nSet height, then check the near edge.\nRest hands gently on the real table.\nThis is manual fitting, not surface sensing.\nHeight "+(height*100).ToString("F1")+" cm  |  Edge "+((setup==null?.18f:setup.Parameters.tableNearEdge)*100).ToString("F0")+" cm";
-                    Set(0,"Enter table height");Set(1,inches?"Units: inches":"Units: cm");Set(2,"Edge closer 2 cm");Set(3,"Edge farther 2 cm");Set(4,"Realign (4 sec)");Set(5,"Confirm table");break;
+                    heading.text="2 / 4   Fit the support surface";
+                    instructions.text="Rest hands on your real table or bed.\nIf the surface hides them, lower it.\nAdjust in 1 cm steps, then check the edge.\nA soft mattress can compress under your arms.\nHeight "+(height*100).ToString("F1")+" cm  |  Edge "+((setup==null?.18f:setup.Parameters.tableNearEdge)*100).ToString("F0")+" cm";
+                    Set(0,"Lower 1 cm");Set(1,"Raise 1 cm");Set(2,"Edge closer 2 cm");Set(3,"Edge farther 2 cm");Set(4,"Enter exact height");Set(5,"Confirm surface");break;
                 case Page.HeightEntry:
                     heading.text="Enter measured table height";
                     instructions.text="Floor to tabletop - "+(inches?"inches":"centimetres")+"\n"+(heightEntry.Length==0?"_":heightEntry)+"\n"+"Allowed: "+(inches?"17.8 - 43.3 in":"45 - 110 cm");
@@ -223,7 +223,7 @@ namespace QuestResearch.Embodiment
                 case Page.Settings:
                     heading.text="Pilot settings";
                     instructions.text="Mode: "+mode+"\nAffected side: "+affected+"\nRecalibration hides the menu for 4 seconds.\nClinician hand tracking is not available.\nDo not present this as an automated touch trial.";
-                    Set(0,"New wearer");Set(1,"Realign (4 sec)");Set(2,"Fit table / arms");Set(3,"Affected: "+affected);Set(4,demoActive?"End demo":"Choose mapping");Set(5,demoActive?"Resume":"Close",setup!=null&&setup.Aligned);break;
+                    Set(0,"New wearer");Set(1,"Realign (4 sec)");Set(2,"Surface height");Set(3,"Affected: "+affected);Set(4,demoActive?"End demo":"Choose mapping");Set(5,demoActive?"Resume":"Close",setup!=null&&setup.Aligned);break;
             }
         }
         void Act(int i)
@@ -235,10 +235,9 @@ namespace QuestResearch.Embodiment
                     if(i==2)knownHeight=0;
                     if(i==3){setup.BeginParticipantSetup();body.BeginParticipant(knownHeight);BeginAlignment();}break;
                 case Page.Table:
-                    if(i==0){heightEntry="";Show(Page.HeightEntry);}
-                    if(i==1)inches=!inches;
+                    if(i==0||i==1){setup.AdjustTableHeight(i==0?-.01f:.01f);Record("surface_height_step");}
                     if(i==2||i==3)setup.AdjustTableDistance(i==2?-.02f:.02f);
-                    if(i==4)BeginAlignment();
+                    if(i==4){heightEntry="";Show(Page.HeightEntry);}
                     if(i==5){setup.ConfirmTable();Record("table_confirmed");Show(Page.Fit);}break;
                 case Page.HeightEntry:
                     if(i==3 && heightEntry.Length>0)heightEntry=heightEntry.Substring(0,heightEntry.Length-1);

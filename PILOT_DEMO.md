@@ -1,4 +1,4 @@
-# Guided PI demonstration — 0.8.2 / code 15
+# Guided PI demonstration — 0.8.3 / code 16
 
 This build is a guided **movement/embodiment demonstration**, not a complete clinical study system. Automatic clinician-hand identification and sensed touch are not implemented. Keep other people's hands out of the headset's hand-tracking view during this demonstration. The provider does not give us a reliable person identity, so we cannot guarantee that it will reject a clinician's hand.
 
@@ -85,3 +85,12 @@ A strict display constraint can visibly flatten/lift geometry when calibration o
 Validation includes 500 deterministic triangle/table cases, including conservative edge-crossing coverage, plus an occluder render test and preview of the circular selection indicator. Headset appearance still needs wearer confirmation after installation.
 
 0.8.2 Configure and BuildAndPreview passed. The final occlusion/ring preview was visually inspected; an additional brightness assertion protects text readability. Final APK SHA-256: `98bfcdc1543b96cdcfbc71f5691c829af44a0a479761e7da49c5874d2866ad38`. ADB installation returned Success; wearer appearance confirmation remains pending.
+
+
+### Quick surface-height adjustment (0.8.3)
+
+Open Settings > Surface height, then use Lower 1 cm / Raise 1 cm. Changes apply immediately and save to the existing setup file; each step invalidates surface confirmation and records a `surface_height_step` demo event. Move gaze away and back to repeat a dwell selection. Confirm surface once the physical and virtual surfaces agree. Exact numeric entry remains available, including the keypad cm/inches switch. No realignment or body-frame change is needed for a height-only correction.
+
+The same controls are present in initial setup. On a bed, match the surface where the resting arms actually lie: a mattress is deformable, while this prototype still represents a single horizontal plane. It does not sense or reconstruct mattress compression. Moving to a new location requires normal alignment and surface confirmation.
+
+0.8.3 build and existing validation passed; the surface-height page was visually inspected. ADB install returned Success. APK SHA-256: `965f9fe637059f0769f85f5ad3c4c2a24caaab54bc84712e6448317c4e495f37`. Surface fit at the new bed location remains a wearer check.
