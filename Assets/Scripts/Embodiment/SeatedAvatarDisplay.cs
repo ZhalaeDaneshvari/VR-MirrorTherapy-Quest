@@ -35,6 +35,16 @@ namespace QuestResearch.Embodiment
         Transform[][] joints,bones;
         int[] parents;
         bool ready;
+        readonly Transform[] fitMarkers=new Transform[6];
+        public bool TryRestingHeight(QuestResearch.Hands.TrackingHandFrame frame,int side,out float height)
+        {
+            height=0;if(!ready||handMeshes[side]==null||frame.Availability!=QuestResearch.Hands.HandAvailability.Available)return false;
+            var pose=contactHands[side];pose.CopyFrom(frame);
+            handMeshes[side].Apply(pose,trackingSpace,setup.HeadTracked);
+            handMeshes[side].LowestOverTable(setup.BodyFrame,setup.Parameters);
+            height=handMeshes[side].LowestWholeHand;
+            return float.IsFinite(height);
+        }
         bool[] previousReach={true,true};
         readonly float[] surfaceClearance={float.PositiveInfinity,float.PositiveInfinity};
         double nextFitReport;
@@ -90,6 +100,15 @@ namespace QuestResearch.Embodiment
                     if(parents[i]>=0)bones[side][i]=Part("Hand segment "+i,PrimitiveType.Capsule,handRoots[side],skin);
                 }
             }
+            for(int i=0;i<6;i++)
+            {
+                fitMarkers[i]=Part((i<3?"Left ":"Right ")+new[]{"shoulder estimate","elbow estimate","tracked wrist"}[i%3],PrimitiveType.Sphere,body,shirt);
+                fitMarkers[i].localScale=Vector3.one*.025f;
+                var text=new GameObject("Joint label").AddComponent<TextMesh>();text.transform.SetParent(fitMarkers[i],false);
+                text.transform.localPosition=Vector3.up*1.4f;text.transform.localScale=Vector3.one*40;
+                text.font=Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");text.GetComponent<Renderer>().sharedMaterial=text.font.material;
+                text.text=new[]{"Shoulder (estimated)","Elbow (estimated)","Wrist"}[i%3];text.fontSize=40;text.characterSize=.004f;text.anchor=TextAnchor.MiddleCenter;text.color=Color.white;
+            }
             ready=true;
         }
         Transform Part(string name,PrimitiveType shape,Transform parent,Material material)
@@ -106,6 +125,9 @@ namespace QuestResearch.Embodiment
             var p=setup.Parameters;
             if(!visible||!p.tableContactEnabled||previousTableHeight!=p.tableHeight){foreach(var rest in rests)rest.Reset();previousTableHeight=p.tableHeight;}
             torso.localPosition=new Vector3(0,setup.SeatedHeadHeight-.52f,-.09f);torso.localScale=new Vector3(p.shoulderWidth,.28f,.23f);
+            tableTop.gameObject.SetActive(setup.SurfacePreview);
+            foreach(var leg in tableLegs)leg.gameObject.SetActive(setup.SurfacePreview);
+            foreach(var marker in fitMarkers)marker.gameObject.SetActive(false);
             tableTop.localPosition=new Vector3(0,p.tableHeight-.02f,p.tableNearEdge+p.tableDepth*.5f);
             tableTop.localScale=new Vector3(p.tableWidth,.04f,p.tableDepth);
             for(int i=0;i<4;i++)
@@ -138,7 +160,7 @@ namespace QuestResearch.Embodiment
             if(previousSource[side]!=hand.SourceHand||previousReflection[side]!=hand.Reflected)
                 rest.Reset();
             previousSource[side]=hand.SourceHand;previousReflection[side]=hand.Reflected;
-            bool guard=bodyVisible && valid && handMeshes[side]!=null;
+            bool guard=bodyVisible && setup.SurfacePreview && valid && handMeshes[side]!=null;
             bool assist=guard && bodyTargets!=null && setup.Parameters.tableContactEnabled;
             belowTable[side]=false;
             if(!assist)rest.Reset();
@@ -161,7 +183,7 @@ namespace QuestResearch.Embodiment
                 eligible=TableContactMath.Inside(wristBody,p) && wristBody.y>=p.tableHeight-.025f && wristBody.y<=p.tableHeight+.09f && Vector3.Dot(normal,up)>.82f;
                 eligible &= assist;
                 rest.BeginFrame(eligible,Time.unscaledDeltaTime);
-                Quaternion flatten=Quaternion.Slerp(Quaternion.identity,Quaternion.RotateTowards(Quaternion.identity,Quaternion.FromToRotation(normal,up),30),rest.FlatBlend);
+                Quaternion flatten=Quaternion.Slerp(Quaternion.identity,Quaternion.RotateTowards(Quaternion.identity,Quaternion.FromToRotation(normal,up),8),rest.FlatBlend);
                 PalmFlattenDegrees[side]=Quaternion.Angle(Quaternion.identity,flatten);
                 Vector3 pivot=hand.Joints[w].position;
                 for(int i=0;i<displayed.Joints.Length;i++)
@@ -179,6 +201,7 @@ namespace QuestResearch.Embodiment
                     offset=Mathf.Max(offset,setup.Parameters.tableHeight+.001f-handMeshes[side].LowestWholeHand);
                 // Fully below-table hands retain their actual pose and table occlusion; do not pull them upward.
                 if(belowTable[side])offset=0;
+                offset=Mathf.Clamp(offset,-.01f,.015f); // Never mask a bad height by dragging the wrist far from tracking.
                 HandTableLift[side]=offset;
                 if(offset!=0)
                 {
@@ -229,7 +252,7 @@ namespace QuestResearch.Embodiment
                 Vector3 pole=SeatedArmMath.RestingElbowPole(side==0);
                 Vector3 elbow;
                 if(bodyTargets!=null)
-                    reachable=bodyTargets.TryGet(hand,out shoulder,out elbow);
+                    reachable=bodyTargets.TryGetFitted(hand,wrist,out shoulder,out elbow);
                 else reachable=SeatedArmMath.TryElbow(shoulder,wrist,p.upperArmLength,p.forearmLength,pole,out elbow);
                 float aboveTable=wrist.y-p.tableHeight;
                 bool overTable=Mathf.Abs(wrist.x)<p.tableWidth*.5f && wrist.z>=p.tableNearEdge && wrist.z<=p.tableNearEdge+p.tableDepth;
@@ -241,7 +264,7 @@ namespace QuestResearch.Embodiment
                     support*=Mathf.SmoothStep(0,1,Mathf.Clamp01(edge/.05f));
                     if(SeatedArmMath.TrySupportedElbow(shoulder,wrist,p.upperArmLength,p.forearmLength,pole,p.tableHeight+.04f*p.armFullness,support,out var supported))elbow=supported;
                 }
-                if(reachable && bodyTargets!=null && rests[side].Active)
+                if(reachable && bodyTargets!=null && rests[side].Active && !bodyTargets.HasFit)
                 {
                     // Support the estimated elbow vertically; preserve its lateral location to avoid bowed-out arms.
                     float target=setup.Parameters.tableHeight+.035f*p.armFullness;
@@ -250,11 +273,20 @@ namespace QuestResearch.Embodiment
                 }
                 if(reachable)
                 {
+                    for(int j=0;j<3;j++)
+                    {
+                        var marker=fitMarkers[side*3+j];marker.gameObject.SetActive(setup.ShowFitMarkers);
+                        marker.localPosition=j==0?shoulder:j==1?elbow:wrist;
+                        marker.rotation=Camera.main!=null?Camera.main.transform.rotation:Quaternion.identity;
+                    }
                     if (armSurfaces[side] != null)
                     {
                         Quaternion wristRotation=Quaternion.Inverse(setup.BodyFrame.rotation)*trackingSpace.rotation*hand.Joints[w].rotation;
                         armSurfaces[side].Apply(shoulder, elbow, wrist, wristRotation,p.armFullness);
-                        ArmSurfaceLift[side]=armSurfaces[side].ResolveSmallTableOverlap(p);
+                        // Large corrections flatten anatomy. Correct only small residual skin overlap;
+                        // a misplaced surface must be recalibrated rather than deforming the wearer.
+                        if(setup.SurfacePreview && armSurfaces[side].MinimumClearance(p)>=-.015f)
+                            ArmSurfaceLift[side]=armSurfaces[side].ResolveSmallTableOverlap(p);
                         surfaceClearance[side]=armSurfaces[side].MinimumClearance(p);
                     }
                     else { Segment(upper[side],shoulder,elbow,.075f);Segment(forearm[side],elbow,wrist,.058f); }

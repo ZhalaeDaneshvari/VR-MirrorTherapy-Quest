@@ -36,6 +36,8 @@ namespace QuestResearch.Embodiment
         public SeatedParameters Parameters=>parameters;
         public Transform BodyFrame { get; private set; }
         public bool Aligned { get; private set; }
+        public bool SurfacePreview {get;set;}=true;
+        public bool ShowFitMarkers {get;set;}
         public float SeatedHeadHeight { get; private set; }
         public bool HeadTracked { get; private set; }
         public string SurfaceFitWarning { get; set; } = "";
@@ -129,6 +131,7 @@ namespace QuestResearch.Embodiment
         }
         public void AdjustTableHeight(float metres)
         {
+            SurfacePreview=true;
             parameters.tableHeight=Mathf.Clamp(parameters.tableHeight+metres,.45f,1.1f);
             parameters.tableAlignmentConfirmed=false;
             Debug.Log($"[Seated] Table height adjusted to {parameters.tableHeight:F3} m; still uncalibrated.");
@@ -136,7 +139,7 @@ namespace QuestResearch.Embodiment
         }
         public void BeginParticipantSetup()
         {
-            Aligned=false;parameters.tableAlignmentConfirmed=false;
+            Aligned=false;SurfacePreview=false;ShowFitMarkers=false;parameters.tableAlignmentConfirmed=false;
             parameters.movementCondition=MovementCondition.Normal;parameters.showSourceHand=true;
             Message="New wearer: alignment and table confirmation required";
             Changed?.Invoke();Save();

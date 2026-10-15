@@ -38,11 +38,11 @@ public static class QuestBodyAvatarSetup
         var pilot=origin.GetComponent<PilotWalkthrough>()??origin.gameObject.AddComponent<PilotWalkthrough>();
         pilot.Configure(setup,origin.GetComponent<QuestResearch.Hands.HandTrackingSource>(),body,origin.Camera.transform,
             AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/SetupButton.mat"),AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/SetupButtonHover.mat"),Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
-        // Muted cool table separates warm skin without altering tracked contact positions.
-        Surface("SeatedTable",new Color(.24f,.30f,.32f),.18f);
+        // Brown table and light gray floor, as requested.
+        Surface("SeatedTable",new Color(.30f,.16f,.075f),.18f);
         Surface("SeatedSkin",new Color(.69f,.46f,.32f),.28f);
         Surface("SeatedShirt",new Color(.12f,.17f,.20f),.10f);
-        Surface("SeatedFloor",new Color(.49f,.52f,.54f),.05f);
+        Surface("SeatedFloor",new Color(.72f,.73f,.74f),.05f);
         RenderSettings.ambientMode=AmbientMode.Trilight;
         RenderSettings.ambientSkyColor=new Color(.72f,.76f,.8f);
         RenderSettings.ambientEquatorColor=new Color(.45f,.47f,.49f);
@@ -52,7 +52,7 @@ public static class QuestBodyAvatarSetup
         QualitySettings.shadows=ShadowQuality.All;QualitySettings.shadowResolution=ShadowResolution.Medium;QualitySettings.shadowDistance=4;
         origin.Camera.backgroundColor=new Color(.60f,.64f,.67f);
         EditorSceneManager.SaveScene(scene);
-        PlayerSettings.productName="Quest Body Driven Avatar";PlayerSettings.bundleVersion="0.8.4";PlayerSettings.Android.bundleVersionCode=17;
+        PlayerSettings.productName="Quest Body Driven Avatar";PlayerSettings.bundleVersion="0.9.0";PlayerSettings.Android.bundleVersionCode=18;
         PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android,AppId);
         EditorBuildSettings.scenes=new[]{new EditorBuildSettingsScene(ScenePath,true)};
         AssetDatabase.SaveAssets();Validate();
@@ -62,6 +62,21 @@ public static class QuestBodyAvatarSetup
     public static void Validate()
     {
         QuestProjectSetup.Validate();
+        var heights=new System.Collections.Generic.List<float>();
+        for(int i=0;i<40;i++)heights.Add(.741f+(i%3-1)*.001f);
+        heights[0]=.1f;heights[39]=1.2f;
+        if(!RestingSurfaceCalibration.TryEstimate(heights,out float estimated)||Mathf.Abs(estimated-.740f)>.0011f)
+            throw new BuildFailedException("Resting-surface median rejected a stable window with outliers.");
+        heights[10]=float.NaN;
+        if(RestingSurfaceCalibration.TryEstimate(heights,out _))throw new BuildFailedException("Nonfinite surface sample accepted.");
+        heights.Clear();for(int i=0;i<40;i++)heights.Add(.6f+i*.002f);
+        if(RestingSurfaceCalibration.TryEstimate(heights,out _))throw new BuildFailedException("Moving hands accepted as stable table.");
+        Vector3 shoulder=new Vector3(-.2f,1.1f,0),wrist=new Vector3(-.2f,.78f,.3f);
+        if(!SeatedArmMath.TryElbow(shoulder,wrist,.30f,.26f,Vector3.down,out var elbow)
+            || Mathf.Abs(Vector3.Distance(shoulder,elbow)-.30f)>.0001f || Mathf.Abs(Vector3.Distance(elbow,wrist)-.26f)>.0001f)
+            throw new BuildFailedException("Fixed-length arm fitting stretched a segment.");
+        if(SeatedArmMath.TryElbow(shoulder,shoulder+Vector3.forward,.30f,.26f,Vector3.down,out _))
+            throw new BuildFailedException("Unreachable arm was stretched.");
         var frame=new Pose(new Vector3(2,.4f,-3),Quaternion.Euler(0,67,0));
         var physical=new Pose(frame.position+frame.rotation*new Vector3(-.2f,.7f,.3f),Quaternion.identity);
         var normal=BodyArmTargets.ToBody(physical,false,frame);var reflected=BodyArmTargets.ToBody(physical,true,frame);

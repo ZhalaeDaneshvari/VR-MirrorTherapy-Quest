@@ -11,7 +11,7 @@ namespace QuestResearch.Embodiment
     // All interaction uses physical hands; conditions only affect the avatar mapping.
     public sealed class PilotWalkthrough : MonoBehaviour
     {
-        public enum Page { Welcome, Table, Fit, Ready, Settings, Running, Aligning, HeightEntry }
+        public enum Page { Welcome, Table, Fit, Ready, Settings, Running, Aligning, HeightEntry, SurfaceCapture, SurfaceTools }
         [SerializeField] SeatedSetup setup;
         [SerializeField] HandTrackingSource hands;
         [SerializeField] BodyTrackingProbe body;
@@ -19,6 +19,8 @@ namespace QuestResearch.Embodiment
         [SerializeField] Material idleMaterial, hoverMaterial;
         [SerializeField] Font font;
         Transform panel,card,quickButton;
+        RestingSurfaceCalibration surfaceCapture;
+        BodyArmTargets fittedArms;
         Material cardMaterial,uiIdle,uiHover,uiText;
         GazeProgressRing progressRing;
         TextMesh heading,instructions,status,quickText;
@@ -99,7 +101,7 @@ namespace QuestResearch.Embodiment
         }
         public void Show(Page next)
         {
-            page=next;left.Reset();right.Reset();dwell.Block(lastHovered);nextText=0;
+            page=next;placed=false;left.Reset();right.Reset();dwell.Block(lastHovered);nextText=0;
             if(card==null)return;
             progressRing.SetProgress(Vector3.zero,0,false);
             card.gameObject.SetActive(next!=Page.Running && next!=Page.Aligning);
@@ -126,6 +128,8 @@ namespace QuestResearch.Embodiment
         }
         public void BeginAlignment()
         {
+            if(fittedArms!=null)fittedArms.ClearFit();
+            if(setup!=null)setup.SurfacePreview=false;
             demoActive=false;notice="";alignmentFailure="";Record("alignment_requested");
             if(setup!=null)setup.PrepareFloorOrigin();
             nextFloorRetry=Time.realtimeSinceStartupAsDouble+1;
@@ -137,21 +141,33 @@ namespace QuestResearch.Embodiment
         {
             var forward=Vector3.ProjectOnPlane(head.forward,Vector3.up).normalized;
             if(forward.sqrMagnitude<.5f)return;
-            panel.SetPositionAndRotation(head.position+forward*.9f,Quaternion.LookRotation(forward,Vector3.up));placed=true;
+            // Keep the entire panel above the hand workspace rather than in front of the lap.
+            Vector3 position=head.position+forward*1.15f+Vector3.up*.32f;
+            if(setup!=null&&setup.Aligned)position.y=Mathf.Max(position.y,setup.BodyFrame.position.y+setup.Parameters.tableHeight+.65f);
+            panel.SetPositionAndRotation(position,Quaternion.LookRotation(forward,Vector3.up));placed=true;
         }
         bool HandsReady=>hands!=null && hands.Left.Availability==HandAvailability.Available && hands.Right.Availability==HandAvailability.Available;
         bool BodyReady=>body!=null && body.Valid[1]&&body.Valid[2]&&body.Valid[5]&&body.Valid[6] && Time.realtimeSinceStartupAsDouble-body.ReceivedAt<.25;
-        bool FitReady=>setup!=null && setup.Aligned&&setup.Parameters.tableAlignmentConfirmed&&HandsReady&&BodyReady&&stableSince>=0&&Time.realtimeSinceStartupAsDouble-stableSince>=1;
+        bool FitReady=>setup!=null && setup.Aligned&&setup.Parameters.tableAlignmentConfirmed&&(fittedArms==null||fittedArms.HasFit)&&HandsReady&&BodyReady&&stableSince>=0&&Time.realtimeSinceStartupAsDouble-stableSince>=1;
         void Update()
         {
             if(panel==null)return;
+            if(surfaceCapture==null)
+            {
+                fittedArms=GetComponent<BodyArmTargets>();
+                surfaceCapture=gameObject.AddComponent<RestingSurfaceCalibration>();
+                surfaceCapture.Initialize(setup,hands,GetComponent<SeatedAvatarDisplay>(),fittedArms);
+            }
             if(!Application.isFocused || !setup.HeadTracked || !OpenXRUtility.IsUserPresent)
             {
-                panel.gameObject.SetActive(false);placed=false;stableSince=-1;left.Reset();right.Reset();
+                surfaceCapture.Cancel();panel.gameObject.SetActive(false);placed=false;stableSince=-1;left.Reset();right.Reset();
                 if(wasFocused){Record("tracking_or_focus_lost");demoActive=false;page=Page.Welcome;alignAt=-1;wasFocused=false;}
                 return;
             }
-            if(!wasFocused){wasFocused=true;setup.BeginParticipantSetup();Show(Page.Welcome);}
+            if(!wasFocused){wasFocused=true;if(fittedArms!=null)fittedArms.ClearFit();setup.BeginParticipantSetup();Show(Page.Welcome);}
+            setup.ShowFitMarkers=page==Page.Fit;
+            if(page==Page.SurfaceCapture&&!surfaceCapture.Active)
+            {notice=surfaceCapture.Message;Record(surfaceCapture.Succeeded?"surface_estimated":"surface_estimate_failed");Show(Page.Table);}
             if(HandsReady&&BodyReady){if(stableSince<0)stableSince=Time.realtimeSinceStartupAsDouble;}else stableSince=-1;
             if(page==Page.Aligning)
             {
@@ -211,8 +227,16 @@ namespace QuestResearch.Embodiment
                     Set(0,"Height -5 cm");Set(1,"Height +5 cm");Set(2,"Use automatic");Set(3,"Begin alignment");break;
                 case Page.Table:
                     heading.text="2 / 4   Fit the support surface";
-                    instructions.text="Rest hands on your real table or bed.\nIf the surface hides them, lower it.\nAdjust in 1 cm steps, then check the edge.\nA soft mattress can compress under your arms.\nHeight "+(height*100).ToString("F1")+" cm  |  Edge "+((setup==null?.18f:setup.Parameters.tableNearEdge)*100).ToString("F0")+" cm";
-                    Set(0,"Lower 1 cm");Set(1,"Raise 1 cm");Set(2,"Edge closer 2 cm");Set(3,"Edge farther 2 cm");Set(4,"Enter exact height");Set(5,"Confirm surface");break;
+                    instructions.text="First: Estimate from hands.\nRest both palms on the real table.\nThen verify the height and near edge.\nThis is an estimate; confirm against reality.\nHeight "+(height*100).ToString("F1")+" cm  |  Edge "+((setup==null?.18f:setup.Parameters.tableNearEdge)*100).ToString("F0")+" cm";
+                    if(notice.Length>0){instructions.text=notice;status.text="Check fit, then Confirm surface. Gaze or pinch to select.";}
+                    Set(0,"Lower 1 cm");Set(1,"Raise 1 cm");Set(2,"Estimate from hands");Set(3,"More surface options");Set(4,"Enter exact height");Set(5,"Confirm surface",setup==null||setup.SurfacePreview);break;
+                case Page.SurfaceCapture:
+                    heading.text="Rest hands on the REAL table";
+                    instructions.text=surfaceCapture==null?"Hold both palms flat and still.":surfaceCapture.Message;
+                    Set(5,"Cancel");break;
+                case Page.SurfaceTools:
+                    heading.text="Surface position";instructions.text="Align the near edge with the real table.\nTable height remains unchanged.";
+                    Set(0,"Edge closer 2 cm");Set(1,"Edge farther 2 cm");Set(5,"Back");break;
                 case Page.HeightEntry:
                     heading.text="Enter measured table height";
                     instructions.text="Floor to tabletop - "+(inches?"inches":"centimetres")+"\n"+(heightEntry.Length==0?"_":heightEntry)+"\n"+"Allowed: "+(inches?"17.8 - 43.3 in":"45 - 110 cm");
@@ -220,7 +244,7 @@ namespace QuestResearch.Embodiment
                     for(int i=0;i<16;i++)Set(i,keys[i]);break;
                 case Page.Fit:
                     heading.text="3 / 4   Check embodiment";
-                    instructions.text="Check both wrists, elbows and shoulders.\nRest, lift, and slowly turn each hand.\nUse only comfortable movement.\nShoulders/elbows are estimates, not a scan.\n"+(FitReady?"Tracking ready - confirm the visual fit.":"Waiting for both hands and body tracking...");
+                    instructions.text="Check both wrists, elbows and shoulders.\nRest, lift, and slowly turn each hand.\nUse only comfortable movement.\nShoulders/elbows are estimates, not a scan.\n"+(FitReady?"Tracking ready - confirm the visual fit.":"Fit pending: use Estimate from hands,\nthen check tracking and joint markers.");
                     Set(0,"Arms slimmer");Set(1,"Arms fuller");Set(2,"Table rest "+(setup==null||setup.Parameters.tableContactEnabled?"ON":"OFF"));Set(3,"Adjust table");Set(4,"Realign (4 sec)");Set(5,"Fit looks correct",FitReady);break;
                 case Page.Ready:
                     heading.text="4 / 4   Movement demo";
@@ -241,10 +265,15 @@ namespace QuestResearch.Embodiment
                     if(i==2)knownHeight=0;
                     if(i==3){setup.BeginParticipantSetup();body.BeginParticipant(knownHeight);BeginAlignment();}break;
                 case Page.Table:
-                    if(i==0||i==1){setup.AdjustTableHeight(i==0?-.01f:.01f);Record("surface_height_step");}
-                    if(i==2||i==3)setup.AdjustTableDistance(i==2?-.02f:.02f);
+                    if(i==0||i==1){notice="";setup.AdjustTableHeight(i==0?-.01f:.01f);Record("surface_height_step");}
+                    if(i==2){surfaceCapture.Begin();notice="";Show(Page.SurfaceCapture);}
+                    if(i==3)Show(Page.SurfaceTools);
                     if(i==4){heightEntry="";Show(Page.HeightEntry);}
-                    if(i==5){setup.ConfirmTable();Record("table_confirmed");Show(Page.Fit);}break;
+                    if(i==5){if(fittedArms!=null&&!fittedArms.HasFit)fittedArms.CaptureFit();setup.ConfirmTable();Record("table_confirmed");Show(Page.Fit);}break;
+                case Page.SurfaceCapture:
+                    if(i==5){surfaceCapture.Cancel();Show(Page.Table);}break;
+                case Page.SurfaceTools:
+                    if(i<2)setup.AdjustTableDistance(i==0?-.02f:.02f);if(i==5)Show(Page.Table);break;
                 case Page.HeightEntry:
                     if(i==3 && heightEntry.Length>0)heightEntry=heightEntry.Substring(0,heightEntry.Length-1);
                     else if(i==7)heightEntry="";
@@ -271,7 +300,7 @@ namespace QuestResearch.Embodiment
                     if(i==4)Show(Page.Settings);
                     if(i==5&&FitReady){demoActive=true;Record("demo_start");Show(Page.Running);}break;
                 case Page.Settings:
-                    if(i==0){demoActive=false;knownHeight=0;affected="Not specified";setup.BeginParticipantSetup();Record("new_wearer");Show(Page.Welcome);}
+                    if(i==0){demoActive=false;knownHeight=0;affected="Not specified";if(fittedArms!=null)fittedArms.ClearFit();setup.BeginParticipantSetup();Record("new_wearer");Show(Page.Welcome);}
                     if(i==1)BeginAlignment();if(i==2){demoActive=false;Show(Page.Table);}
                     if(i==3)affected=affected=="Not specified"?"Left":affected=="Left"?"Right":"Not specified";
                     if(i==4){demoActive=false;Record("demo_end");Show(Page.Ready);}

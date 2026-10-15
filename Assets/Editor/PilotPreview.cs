@@ -27,7 +27,7 @@ public static class PilotPreview
         var panel=scene.GetRootGameObjects().Single(x=>x.name=="Pilot walkthrough UI");panel.transform.position=Vector3.forward*.9f;
         var texture=new RenderTexture(1280,960,24);camera.targetTexture=texture;
         var png=new Texture2D(1280,960,TextureFormat.RGB24,false);
-        foreach(var page in new[]{PilotWalkthrough.Page.Welcome,PilotWalkthrough.Page.Table,PilotWalkthrough.Page.HeightEntry,PilotWalkthrough.Page.Fit,PilotWalkthrough.Page.Ready,PilotWalkthrough.Page.Settings,PilotWalkthrough.Page.Running})
+        foreach(var page in new[]{PilotWalkthrough.Page.Welcome,PilotWalkthrough.Page.Table,PilotWalkthrough.Page.HeightEntry,PilotWalkthrough.Page.Fit,PilotWalkthrough.Page.Ready,PilotWalkthrough.Page.Settings,PilotWalkthrough.Page.Running,PilotWalkthrough.Page.SurfaceCapture,PilotWalkthrough.Page.SurfaceTools})
         {
             pilot.Show(page);
             if(page==PilotWalkthrough.Page.Running && (panel.GetComponentsInChildren<TextMesh>().Length!=1 || panel.GetComponentsInChildren<TextMesh>()[0].text!="Settings"))
