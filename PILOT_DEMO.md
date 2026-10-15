@@ -124,3 +124,7 @@ The wearer reported that version 0.9.0 looked good and accepted resting-hand hei
 Checkpoint scope: standalone Quest head/hand tracking, seated body estimates, fresh table fit, Normal/one-way mirror/bilateral swap movement, fit markers, hidden settings with gaze/pinch control, brown table/light gray floor, and engineering event logs. Excluded: validated clinician identity, automatic physical touch detection, validated multi-wearer anatomy, final clinical protocol and research dataset.
 
 Preserve `basic-mirror-therapy-pilot-v0.9.0-tested` as the exact wearer-accepted implementation and `basic-mirror-therapy-pilot-v0.9.1` as the default-estimation workflow checkpoint. Clinician work belongs on a separate branch and must not replace the accepted headset app before its feasibility checks pass.
+
+## Optional manual touch demonstration (0.10.0 / Android 20)
+
+The user selected a manually cued elbow-to-wrist stroke as the interim touch condition. See [MANUAL_TOUCH_DEMO.md](MANUAL_TOUCH_DEMO.md) for the complete instructions, USB researcher controls, event semantics and acceptance checks. The saved basic-pilot tags remain unchanged. This build does not implement the separate automatic clinician-hand feasibility plan.

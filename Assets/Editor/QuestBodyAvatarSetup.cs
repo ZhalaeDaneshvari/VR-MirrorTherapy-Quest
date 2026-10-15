@@ -52,7 +52,7 @@ public static class QuestBodyAvatarSetup
         QualitySettings.shadows=ShadowQuality.All;QualitySettings.shadowResolution=ShadowResolution.Medium;QualitySettings.shadowDistance=4;
         origin.Camera.backgroundColor=new Color(.60f,.64f,.67f);
         EditorSceneManager.SaveScene(scene);
-        PlayerSettings.productName="Quest Body Driven Avatar";PlayerSettings.bundleVersion="0.9.1";PlayerSettings.Android.bundleVersionCode=19;
+        PlayerSettings.productName="Quest Body Driven Avatar";PlayerSettings.bundleVersion="0.10.0";PlayerSettings.Android.bundleVersionCode=20;
         PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android,AppId);
         EditorBuildSettings.scenes=new[]{new EditorBuildSettingsScene(ScenePath,true)};
         AssetDatabase.SaveAssets();Validate();
@@ -62,6 +62,9 @@ public static class QuestBodyAvatarSetup
     public static void Validate()
     {
         QuestProjectSetup.Validate();
+        if(ForearmTouchStroke.CountdownAt(0)!=3||ForearmTouchStroke.CountdownAt(.999)!=3||ForearmTouchStroke.CountdownAt(1)!=2||ForearmTouchStroke.CountdownAt(2)!=1||ForearmTouchStroke.CountdownAt(3)!=0
+            ||ForearmTouchStroke.ProgressAt(-1,4)!=0||ForearmTouchStroke.ProgressAt(2,4)!=.5f||ForearmTouchStroke.ProgressAt(5,4)!=1)
+            throw new BuildFailedException("Touch countdown/progress boundary checks failed.");
         var heights=new System.Collections.Generic.List<float>();
         for(int i=0;i<40;i++)heights.Add(.741f+(i%3-1)*.001f);
         heights[0]=.1f;heights[39]=1.2f;
@@ -167,6 +170,13 @@ public static class QuestBodyAvatarSetup
             var arm=new GameObject("Preview arm").AddComponent<ContinuousArmSurface>();arm.Initialize(skin,(side==0?left:right).WristSeamPoints,(side==0?left:right).WristSeamNormals);
             arm.Apply(shoulder,elbow,wristPose.position,wristPose.rotation);
             arm.ResolveSmallTableOverlap(tableParameters);
+            if(!arm.TryTopForearm(0,out var strokeStart)||!arm.TryTopForearm(1,out var strokeEnd)||strokeEnd.z<=strokeStart.z)
+                throw new BuildFailedException("Touch path must run elbow toward wrist on both arms.");
+            arm.transform.SetPositionAndRotation(new Vector3(2,0,-3),Quaternion.Euler(0,63,0));
+            if(!arm.TryTopForearm(.5f,out var moved)||!float.IsFinite(moved.x))throw new BuildFailedException("Touch path lost transformed arm.");
+            arm.gameObject.SetActive(false);
+            if(arm.TryTopForearm(.5f,out _))throw new BuildFailedException("Hidden arm exposed a touch path.");
+            arm.gameObject.SetActive(true);arm.transform.SetPositionAndRotation(Vector3.zero,Quaternion.identity);
             if(arm.MinimumClearance(tableParameters)<-.001f)throw new BuildFailedException("Synthetic resting arm intersects table.");
         }
         var table=GameObject.CreatePrimitive(PrimitiveType.Cube);table.transform.position=new Vector3(0,.86f,.505f);table.transform.localScale=new Vector3(1.1f,.04f,.65f);

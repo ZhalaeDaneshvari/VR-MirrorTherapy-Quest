@@ -11,7 +11,7 @@ namespace QuestResearch.Embodiment
     // All interaction uses physical hands; conditions only affect the avatar mapping.
     public sealed class PilotWalkthrough : MonoBehaviour
     {
-        public enum Page { Welcome, Table, Fit, Ready, Settings, Running, Aligning, HeightEntry, SurfaceCapture, SurfaceTools }
+        public enum Page { Welcome, Table, Fit, Ready, Settings, Running, Aligning, HeightEntry, SurfaceCapture, SurfaceTools, Touch, TouchActive }
         [SerializeField] SeatedSetup setup;
         [SerializeField] HandTrackingSource hands;
         [SerializeField] BodyTrackingProbe body;
@@ -21,6 +21,7 @@ namespace QuestResearch.Embodiment
         Transform panel,card,quickButton;
         RestingSurfaceCalibration surfaceCapture;
         BodyArmTargets fittedArms;
+        ForearmTouchStroke touch;TextMesh touchHud;
         Material cardMaterial,uiIdle,uiHover,uiText;
         GazeProgressRing progressRing;
         TextMesh heading,instructions,status,quickText;
@@ -85,6 +86,7 @@ namespace QuestResearch.Embodiment
             quickText.transform.localPosition=new Vector3(0,0,-.008f);
             // Buttons have metre-sized transforms; text is a sibling so it is not stretched by cube scale.
             quickText.transform.SetParent(panel,false);quickText.transform.localPosition=new Vector3(.30f,-.12f,-.008f);
+            touchHud=Label("",new Vector3(0,0,-.008f),.004f,panel);
             Show(Page.Welcome);panel.gameObject.SetActive(false);
         }
         Transform Button(string name,Vector3 position,Vector2 size,Transform parent)
@@ -101,11 +103,14 @@ namespace QuestResearch.Embodiment
         }
         public void Show(Page next)
         {
+            if(touch!=null&&touch.Active&&next!=Page.TouchActive)touch.Stop("Left touch view");
             page=next;placed=false;left.Reset();right.Reset();dwell.Block(lastHovered);nextText=0;
             if(card==null)return;
             progressRing.SetProgress(Vector3.zero,0,false);
-            card.gameObject.SetActive(next!=Page.Running && next!=Page.Aligning);
-            quickButton.gameObject.SetActive(next==Page.Running);quickText.gameObject.SetActive(next==Page.Running);
+            card.gameObject.SetActive(next!=Page.Running && next!=Page.Aligning && next!=Page.TouchActive);
+            quickButton.gameObject.SetActive(next==Page.Running||next==Page.TouchActive);quickText.gameObject.SetActive(next==Page.Running||next==Page.TouchActive);
+            quickText.text=next==Page.TouchActive?"Stop touch":"Settings";
+            if(touchHud!=null){touchHud.gameObject.SetActive(next==Page.TouchActive);if(next==Page.TouchActive)touchHud.text=touch==null?"Touch begins in 3\nReal Left -> virtual Right":touch.Message;}
             panel.gameObject.SetActive(next!=Page.Aligning);
             Layout(next==Page.HeightEntry);
             RefreshText();
@@ -152,6 +157,20 @@ namespace QuestResearch.Embodiment
         void Update()
         {
             if(panel==null)return;
+            if(touch==null)
+            {
+                touch=gameObject.AddComponent<ForearmTouchStroke>();
+                touch.Configure(setup,hands,GetComponent<SeatedAvatarDisplay>(),idleMaterial);
+                touch.Event+=RecordTouch;
+                gameObject.AddComponent<ManualTouchCommands>().Configure(touch);
+            }
+            // Researcher commands enter the same compact countdown/stop view.
+            if(touch.Active&&page!=Page.TouchActive)Show(Page.TouchActive);
+            if(page==Page.TouchActive)
+            {
+                touchHud.text=touch.Message+"\nReal "+touch.PhysicalSide+" -> virtual "+(PhysicalHand)touch.VisualSide;
+                if(!touch.Active){notice=touch.Message;Show(Page.Touch);}
+            }
             if(surfaceCapture==null)
             {
                 fittedArms=GetComponent<BodyArmTargets>();
@@ -160,7 +179,7 @@ namespace QuestResearch.Embodiment
             }
             if(!Application.isFocused || !setup.HeadTracked || !OpenXRUtility.IsUserPresent)
             {
-                surfaceCapture.Cancel();panel.gameObject.SetActive(false);placed=false;stableSince=-1;left.Reset();right.Reset();
+                touch.Stop("Tracking or presence lost");surfaceCapture.Cancel();panel.gameObject.SetActive(false);placed=false;stableSince=-1;left.Reset();right.Reset();
                 if(wasFocused){Record("tracking_or_focus_lost");demoActive=false;page=Page.Welcome;alignAt=-1;wasFocused=false;}
                 return;
             }
@@ -195,14 +214,14 @@ namespace QuestResearch.Embodiment
             if(Time.realtimeSinceStartupAsDouble>=nextText){nextText=Time.realtimeSinceStartupAsDouble+.2;RefreshText();}
             bool click=left.Update(hands.Left)|right.Update(hands.Right);
             var origin=panel.InverseTransformPoint(head.position);var direction=panel.InverseTransformDirection(head.forward);
-            if(page==Page.Running)
+            if(page==Page.Running||page==Page.TouchActive)
             {
                 int hit=SeatedTestControls.HitButton(origin,direction,quickCentre,quickSize);
                 quickButton.GetComponent<Renderer>().sharedMaterial=hit==0?uiHover:uiIdle;
                 lastHovered=hit==0?16:-1;
                 bool dwellClick=dwell.Update(lastHovered,Time.unscaledDeltaTime);
                 progressRing.SetProgress(quickCentre[0]+new Vector3(.068f,0,-.02f),dwell.Progress,hit==0);
-                if((click||dwellClick)&&hit==0){Record("demo_pause");Show(Page.Settings);}return;
+                if((click||dwellClick)&&hit==0){if(page==Page.TouchActive){touch.Stop();Show(Page.Touch);}else{Record("demo_pause");Show(Page.Settings);}}return;
             }
             int hovered=SeatedTestControls.HitButton(origin,direction,centres,sizes);
             lastHovered=hovered>=0&&available[hovered]?hovered:-1;
@@ -252,10 +271,15 @@ namespace QuestResearch.Embodiment
                     heading.text="4 / 4   Movement demo";
                     instructions.text="Choose a mapping, then start.\nMove one hand slowly, then the other.\nCompare physical and virtual sides.\nMode: "+mode+"\nAffected side: "+affected+" (demo label)";
                     Set(0,"Normal");Set(1,"Left to right");Set(2,"Right to left");Set(3,"Swap both sides");Set(4,"Settings");Set(5,"Start demo",FitReady);break;
+                case Page.Touch:
+                    heading.text="Manual forearm touch";
+                    instructions.text="Clinician strokes the REAL "+(touch==null?"Left":touch.PhysicalSide.ToString())+" forearm.\nVisual stroke: "+(touch==null?"Right":((PhysicalHand)touch.VisualSide).ToString())+" forearm, elbow to wrist.\nRest palms down; follow the 3-second cue.\n"+(touch==null?4:touch.Duration).ToString("F0")+" second stroke. No automatic touch sensing.";
+                    Set(0,"Real side: "+(touch==null?"Left":touch.PhysicalSide.ToString()));Set(1,touch==null||touch.CrossLimb?"Cross-limb":"Congruent");
+                    Set(2,"Duration -1 sec");Set(3,"Duration +1 sec");Set(4,"Start countdown",FitReady);Set(5,"Back");break;
                 case Page.Settings:
                     heading.text="Pilot settings";
                     instructions.text="Mode: "+mode+"\nAffected side: "+affected+"\nRecalibration hides the menu for 4 seconds.\nClinician hand tracking is not available.\nDo not present this as an automated touch trial.";
-                    Set(0,"New wearer");Set(1,"Realign (4 sec)");Set(2,"Surface height");Set(3,"Affected: "+affected);Set(4,demoActive?"End demo":"Choose mapping");Set(5,demoActive?"Resume":"Close",setup!=null&&setup.Aligned);break;
+                    Set(0,"New wearer");Set(1,"Realign (4 sec)");Set(2,"Surface height");Set(3,"Affected: "+affected);Set(4,"Touch demo");Set(5,demoActive?"Resume":"Close",setup!=null&&setup.Aligned);break;
             }
         }
         void Act(int i)
@@ -301,14 +325,25 @@ namespace QuestResearch.Embodiment
                     if(i<4){setup.SetMovement((MovementCondition)i,true);Record("mapping_selected");}
                     if(i==4)Show(Page.Settings);
                     if(i==5&&FitReady){demoActive=true;Record("demo_start");Show(Page.Running);}break;
+                case Page.Touch:
+                    if(i==0)touch.SetOptions(touch.PhysicalSide==PhysicalHand.Left?PhysicalHand.Right:PhysicalHand.Left,touch.CrossLimb,touch.Duration);
+                    if(i==1)touch.SetOptions(touch.PhysicalSide,!touch.CrossLimb,touch.Duration);
+                    if(i==2||i==3)touch.SetOptions(touch.PhysicalSide,touch.CrossLimb,Mathf.Clamp(touch.Duration+(i==2?-1:1),2,8));
+                    if(i==4){if(touch.StartStroke()){notice="";Show(Page.TouchActive);}else notice=touch.Message;}
+                    if(i==5)Show(Page.Settings);break;
                 case Page.Settings:
                     if(i==0){demoActive=false;knownHeight=0;affected="Not specified";if(fittedArms!=null)fittedArms.ClearFit();setup.BeginParticipantSetup();Record("new_wearer");Show(Page.Welcome);}
                     if(i==1)BeginAlignment();if(i==2){demoActive=false;Show(Page.Table);}
                     if(i==3)affected=affected=="Not specified"?"Left":affected=="Left"?"Right":"Not specified";
-                    if(i==4){demoActive=false;Record("demo_end");Show(Page.Ready);}
+                    if(i==4){demoActive=false;Record("demo_end");notice="";Show(Page.Touch);}
                     if(i==5)Show(demoActive?Page.Running:Page.Ready);break;
             }
             RefreshText();
+        }
+        void RecordTouch(ForearmTouchStroke.TouchEvent item)
+        {
+            try{events?.WriteLine(JsonUtility.ToJson(item));}
+            catch(Exception ex) when(ex is IOException||ex is UnauthorizedAccessException){notice="Touch event log unavailable";Debug.LogWarning("[Pilot] "+ex.Message);}
         }
         [Serializable] sealed class PilotEvent
         {
@@ -324,6 +359,6 @@ namespace QuestResearch.Embodiment
         }
         void OnApplicationPause(bool paused){if(paused){Record("app_paused");demoActive=false;alignAt=-1;page=Page.Welcome;placed=false;wasFocused=false;if(panel!=null)panel.gameObject.SetActive(false);}}
         void RefreshFontTexture(Font updated){if(updated==font&&uiText!=null)uiText.mainTexture=font.material.mainTexture;}
-        void OnDestroy(){Font.textureRebuilt-=RefreshFontTexture;Record("app_stop");events?.Dispose();if(panel!=null)Destroy(panel.gameObject);if(cardMaterial!=null)Destroy(cardMaterial);if(uiIdle!=null)Destroy(uiIdle);if(uiHover!=null)Destroy(uiHover);if(uiText!=null)Destroy(uiText);}
+        void OnDestroy(){if(touch!=null){touch.Stop("App closing");touch.Event-=RecordTouch;}Font.textureRebuilt-=RefreshFontTexture;Record("app_stop");events?.Dispose();if(panel!=null)Destroy(panel.gameObject);if(cardMaterial!=null)Destroy(cardMaterial);if(uiIdle!=null)Destroy(uiIdle);if(uiHover!=null)Destroy(uiHover);if(uiText!=null)Destroy(uiText);}
     }
 }

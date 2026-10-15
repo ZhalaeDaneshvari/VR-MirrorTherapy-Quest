@@ -84,6 +84,24 @@ namespace QuestResearch.Embodiment
             }
             mesh.vertices = vertices; mesh.normals = normals; mesh.RecalculateBounds();
         }
+        // Sample the upper surface of the CURRENT rendered forearm, not a world-space path.
+        // Ring 12 is the elbow bend; ring 24 joins the wrist skin. Slight endpoint insets
+        // avoid the elbow crease and wrist seam. Palm-down resting pose is required.
+        public bool TryTopForearm(float progress,out Vector3 world)
+        {
+            world=Vector3.zero;if(vertices==null||!gameObject.activeInHierarchy)return false;
+            float ring=Mathf.Lerp(12.5f,23.5f,Mathf.Clamp01(progress));
+            int a=Mathf.FloorToInt(ring),b=a+1;
+            Vector3 up=transform.InverseTransformDirection(Vector3.up);
+            Vector3 Top(int row)
+            {
+                int best=row*Sides;
+                for(int j=1;j<Sides;j++)if(Vector3.Dot(vertices[row*Sides+j],up)>Vector3.Dot(vertices[best],up))best=row*Sides+j;
+                return vertices[best];
+            }
+            world=transform.TransformPoint(Vector3.Lerp(Top(a),Top(b),ring-a));
+            return float.IsFinite(world.x)&&float.IsFinite(world.y)&&float.IsFinite(world.z);
+        }
         // Conservative triangle-footprint constraint, applied every rendered frame, not only during rest.
         // Clamping every vertex of an overlapping triangle also protects the triangle interior at table edges.
         public float ResolveSmallTableOverlap(SeatedParameters table)

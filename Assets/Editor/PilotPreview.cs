@@ -27,11 +27,13 @@ public static class PilotPreview
         var panel=scene.GetRootGameObjects().Single(x=>x.name=="Pilot walkthrough UI");panel.transform.position=Vector3.forward*.9f;
         var texture=new RenderTexture(1280,960,24);camera.targetTexture=texture;
         var png=new Texture2D(1280,960,TextureFormat.RGB24,false);
-        foreach(var page in new[]{PilotWalkthrough.Page.Welcome,PilotWalkthrough.Page.Table,PilotWalkthrough.Page.HeightEntry,PilotWalkthrough.Page.Fit,PilotWalkthrough.Page.Ready,PilotWalkthrough.Page.Settings,PilotWalkthrough.Page.Running,PilotWalkthrough.Page.SurfaceCapture,PilotWalkthrough.Page.SurfaceTools})
+        foreach(var page in new[]{PilotWalkthrough.Page.Welcome,PilotWalkthrough.Page.Table,PilotWalkthrough.Page.HeightEntry,PilotWalkthrough.Page.Fit,PilotWalkthrough.Page.Ready,PilotWalkthrough.Page.Settings,PilotWalkthrough.Page.Running,PilotWalkthrough.Page.SurfaceCapture,PilotWalkthrough.Page.SurfaceTools,PilotWalkthrough.Page.Touch,PilotWalkthrough.Page.TouchActive})
         {
             pilot.Show(page);
             if(page==PilotWalkthrough.Page.Running && (panel.GetComponentsInChildren<TextMesh>().Length!=1 || panel.GetComponentsInChildren<TextMesh>()[0].text!="Settings"))
                 throw new BuildFailedException("Pilot running view leaked setup UI.");
+            if(page==PilotWalkthrough.Page.TouchActive && (panel.GetComponentsInChildren<TextMesh>().Length!=2 || !panel.GetComponentsInChildren<TextMesh>().Any(t=>t.text=="Stop touch")))
+                throw new BuildFailedException("Touch countdown leaked the setup card or lost Stop control.");
             camera.Render();RenderTexture.active=texture;png.ReadPixels(new Rect(0,0,1280,960),0,0);png.Apply();
             File.WriteAllBytes("/private/tmp/quest-pilot-"+page+".png",png.EncodeToPNG());
         }

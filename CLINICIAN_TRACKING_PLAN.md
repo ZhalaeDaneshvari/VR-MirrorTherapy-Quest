@@ -39,3 +39,7 @@ Record acquisition timestamp and clock domain, host receipt time, sensor/frame s
 - OpenXR hand selection: https://registry.khronos.org/OpenXR/specs/1.0/man/html/XrHandEXT.html
 - Meta Camera API: https://developers.meta.com/vr/documentation/unity/unity-pca-documentation/ (current page updated Oct 7, 2026). MRUK PassthroughCameraAccess provides intrinsics, extrinsics and timestamps; raw camera access needs HEADSET_CAMERA permission. MRUK is not installed in this pilot. The sample editor versions are examples, not evidence that a new camera pipeline is tested in Unity 6000.6.2f1.
 - A possible detector, not a complete clinician solution: https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker . Landmark/handedness results do not establish person identity or physical contact. No detector/model/package has been installed or selected yet.
+
+## Interim decision
+
+The user subsequently selected a manually triggered visual stroke for now: palm-down forearm, elbow toward wrist, with a three-second countdown. That work is on `codex/manual-forearm-touch`; see `MANUAL_TOUCH_DEMO.md`. Automatic clinician sensing remains a separate future investigation, not a capability implied by this manual demo.

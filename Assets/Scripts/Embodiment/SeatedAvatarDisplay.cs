@@ -28,6 +28,13 @@ namespace QuestResearch.Embodiment
         [SerializeField] RemappedHandMesh leftHandPrefab, rightHandPrefab;
         readonly RemappedHandMesh[] handMeshes = new RemappedHandMesh[2];
         readonly ContinuousArmSurface[] armSurfaces = new ContinuousArmSurface[2];
+        public bool HasBodyFit=>bodyTargets!=null&&bodyTargets.HasFit;
+        public bool TryTouchPoint(int side,float progress,out Vector3 point)
+        {
+            point=Vector3.zero;
+            return ready&&setup.Aligned&&setup.HeadTracked&&side>=0&&side<2&&armSurfaces[side]!=null
+                &&armSurfaces[side].TryTopForearm(progress,out point);
+        }
         public void ConfigureMeshes(RemappedHandMesh left, RemappedHandMesh right)
         { leftHandPrefab = left; rightHandPrefab = right; }
         Transform body,torso,tableTop;
