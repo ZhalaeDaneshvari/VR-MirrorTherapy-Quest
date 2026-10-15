@@ -177,7 +177,9 @@ namespace QuestResearch.Embodiment
                 {
                     alignAt=-1;setup.Align();Record(setup.Aligned?"alignment_complete":"alignment_failed");
                     alignmentFailure=setup.Aligned?"":setup.Message;
-                    placed=false;Show(setup.Aligned?Page.Table:Page.Welcome);
+                    placed=false;
+                    if(setup.Aligned){surfaceCapture.Begin();Show(Page.SurfaceCapture);}
+                    else Show(Page.Welcome);
                 }
                 return;
             }
@@ -222,7 +224,7 @@ namespace QuestResearch.Embodiment
             {
                 case Page.Welcome:
                     heading.text="1 / 4   Welcome";
-                    instructions.text="Sit comfortably at a real table.\nKeep only the wearer's hands in view.\nBegin hides this menu for 4 seconds:\nlook straight ahead, with shoulders relaxed.\nHeight: "+(knownHeight>0?(knownHeight*100).ToString("F0")+" cm (standing height)":"automatic estimate - verify fit");
+                    instructions.text="Sit comfortably at a real table.\nKeep only the wearer's hands in view.\nLook ahead during the 4-second alignment.\nThen rest palms flat for automatic table fit.\nHeight: "+(knownHeight>0?(knownHeight*100).ToString("F0")+" cm (standing height)":"automatic estimate - verify fit");
                     if(alignmentFailure.Length>0){heading.text="Alignment needs attention";instructions.text=alignmentFailure+"\n\nThen select Begin alignment again.";}
                     Set(0,"Height -5 cm");Set(1,"Height +5 cm");Set(2,"Use automatic");Set(3,"Begin alignment");break;
                 case Page.Table:

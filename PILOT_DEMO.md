@@ -116,3 +116,11 @@ Large table corrections no longer flatten arm geometry. Hand lifting is limited 
 Automated checks cover robust surface estimation with outliers, rejection of NaN/moving samples, preserved arm lengths and rejection of unreachable targets, alongside existing mapping and UI checks. Hardware acceptance requires the wearer to verify resting skin/table contact, joint fit, menu position, and that lifting/lowering hands stays smooth. `[SurfaceCalibration]` and `[BodyFit]` logs record estimate values and method; these are engineering diagnostics, not the final research dataset.
 
 References: Meta body calibration supports an optional height override (https://developers.meta.com/vr/documentation/unity/move-body-tracking/). Automated room/furniture queries are a separate Scene API workflow and require spatial-data permission (https://developers.meta.com/vr/documentation/unity/unity-spatial-data-perm/); that room-scanning workflow is not implemented in this update.
+
+## Basic mirror-therapy pilot checkpoint (0.9.1 / Android 19)
+
+The wearer reported that version 0.9.0 looked good and accepted resting-hand height estimation. This is single-wearer acceptance, not clinical validation or a multi-participant accuracy result. Version 0.9.1 makes the same resting-hand estimation the default: after successful four-second body alignment, the app automatically opens the resting-hands capture step. Its four-second placement allowance and stable-sample requirements remain unchanged. Cancel, retry, measured-height entry and +/-1 cm adjustment remain available. The flow still requires explicit surface and body-fit confirmation.
+
+Checkpoint scope: standalone Quest head/hand tracking, seated body estimates, fresh table fit, Normal/one-way mirror/bilateral swap movement, fit markers, hidden settings with gaze/pinch control, brown table/light gray floor, and engineering event logs. Excluded: validated clinician identity, automatic physical touch detection, validated multi-wearer anatomy, final clinical protocol and research dataset.
+
+Preserve `basic-mirror-therapy-pilot-v0.9.0-tested` as the exact wearer-accepted implementation and `basic-mirror-therapy-pilot-v0.9.1` as the default-estimation workflow checkpoint. Clinician work belongs on a separate branch and must not replace the accepted headset app before its feasibility checks pass.
