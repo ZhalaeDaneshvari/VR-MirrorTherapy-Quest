@@ -61,3 +61,5 @@ Fallback checkpoint: `codex/stable-table-rest` / `a4f0646` (0.7.2), which predat
 Unity 6000.6.2f1 Configure and BuildAndPreview succeeded. Existing mapping/invalidation/seam/contact assertions passed. Pilot preview checks passed for the running Settings-only view and fully hidden alignment UI; table-entry conversion verified 31 inches = 0.7874 m and rejected invalid/out-of-range values. Calibration, keypad and running-view images were inspected. These are editor checks, not wearer acceptance.
 
 Final APK SHA-256: `7e9b7c095dc868330e54a4cdbf4b3f31b770c2d1b610aad160b09d44768483ee`. ADB installation returned Success and launch was requested successfully. On-device multi-wearer fit, smoothness and the full guided sequence remain pending wearer feedback. Existing SDK warnings do not constitute validated clinician-tracking capability.
+
+On-device startup evidence: the final build's process was running, the Meta body service reported its high-fidelity request accepted, and an ADB headset screenshot visibly showed the new Welcome page in stereo. This verifies startup/UI rendering only; the wearer has not yet confirmed the calibration sequence, arm fit or latency.
