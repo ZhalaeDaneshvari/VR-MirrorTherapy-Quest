@@ -134,6 +134,26 @@ namespace QuestResearch.Embodiment
             Debug.Log($"[Seated] Table height adjusted to {parameters.tableHeight:F3} m; still uncalibrated.");
             Changed?.Invoke();Save();
         }
+        public void BeginParticipantSetup()
+        {
+            Aligned=false;parameters.tableAlignmentConfirmed=false;
+            parameters.movementCondition=MovementCondition.Normal;parameters.showSourceHand=true;
+            Message="New wearer: alignment and table confirmation required";
+            Changed?.Invoke();Save();
+        }
+        public void ConfirmTable()
+        {
+            if(!Aligned || !HeadTracked)return;
+            parameters.tableAlignmentConfirmed=true;Message="Table placement confirmed by wearer/helper";
+            Changed?.Invoke();Save();
+        }
+        public void AdjustTableDistance(float metres)
+        {
+            parameters.tableNearEdge=Mathf.Clamp(parameters.tableNearEdge+metres,.05f,.65f);
+            parameters.tableAlignmentConfirmed=false;Changed?.Invoke();Save();
+        }
+        public void AdjustArmFullness(float amount)
+        {parameters.armFullness=Mathf.Clamp(parameters.armFullness+amount,.8f,1.8f);Changed?.Invoke();Save();}
         public void Align()
         {
             inputs.Clear();SubsystemManager.GetSubsystems(inputs);

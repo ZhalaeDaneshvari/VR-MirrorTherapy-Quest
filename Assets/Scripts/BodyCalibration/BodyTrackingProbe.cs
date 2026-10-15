@@ -31,7 +31,7 @@ namespace QuestResearch.BodyCalibration
         public bool Supported { get; private set; }
         public bool PermissionGranted { get; private set; }
         OVRPlugin.BodyState state;
-        bool started, requested, paused, focused, heightApplied;
+        bool started, requested, paused, focused, heightApplied, resetPending;
         double nextStart, lastProviderTime = double.NaN;
         float height;
         XRInputSubsystem input;
@@ -54,6 +54,16 @@ namespace QuestResearch.BodyCalibration
                 catch(Exception ex) when(ex is IOException || ex is ArgumentException || ex is UnauthorizedAccessException)
                 { HeightStatus="Height file unreadable: automatic"; Debug.LogWarning("[BodyProbe] "+ex.Message); }
             }
+        }
+        // Explicit new-wearer action: do not silently reuse another participant's height.
+        public void BeginParticipant(float standingHeight)
+        {
+            height=standingHeight>=.5f && standingHeight<=2.5f?standingHeight:0;
+            heightApplied=false;
+            resetPending=true;
+            HeightStatus=height>0?$"Known height {height:F2} m":"Automatic height (verify arm fit)";
+            Invalidate("Recalibrating for new wearer");
+            Debug.Log($"[BodyProbe] New wearer height={height:F2} resetQueued={resetPending}");
         }
         void Update()
         {
@@ -86,6 +96,11 @@ namespace QuestResearch.BodyCalibration
                 bool fidelityRequested=OVRPlugin.RequestBodyTrackingFidelity(OVRPlugin.BodyTrackingFidelity2.High);
                 Debug.Log("[BodyProbe] Started upper-body estimates; high fidelity request accepted="+fidelityRequested);
                 heightApplied=false;
+            }
+            if(resetPending)
+            {
+                bool accepted=OVRPlugin.ResetBodyTrackingCalibration();resetPending=false;
+                Debug.Log("[BodyProbe] New wearer calibration reset accepted="+accepted);
             }
             if(height>0&&!heightApplied)
             {

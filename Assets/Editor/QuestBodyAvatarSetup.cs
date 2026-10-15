@@ -34,6 +34,10 @@ public static class QuestBodyAvatarSetup
         var targets=origin.GetComponent<BodyArmTargets>()??origin.gameObject.AddComponent<BodyArmTargets>();
         targets.Configure(body,setup,origin.CameraFloorOffsetObject.transform);
         origin.GetComponent<SeatedAvatarDisplay>().ConfigureBodyTargets(targets);
+        origin.GetComponent<SeatedTestControls>().enabled=false;
+        var pilot=origin.GetComponent<PilotWalkthrough>()??origin.gameObject.AddComponent<PilotWalkthrough>();
+        pilot.Configure(setup,origin.GetComponent<QuestResearch.Hands.HandTrackingSource>(),body,origin.Camera.transform,
+            AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/SetupButton.mat"),AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/SetupButtonHover.mat"),Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
         // Muted cool table separates warm skin without altering tracked contact positions.
         Surface("SeatedTable",new Color(.24f,.30f,.32f),.18f);
         Surface("SeatedSkin",new Color(.69f,.46f,.32f),.28f);
@@ -48,7 +52,7 @@ public static class QuestBodyAvatarSetup
         QualitySettings.shadows=ShadowQuality.All;QualitySettings.shadowResolution=ShadowResolution.Medium;QualitySettings.shadowDistance=4;
         origin.Camera.backgroundColor=new Color(.60f,.64f,.67f);
         EditorSceneManager.SaveScene(scene);
-        PlayerSettings.productName="Quest Body Driven Avatar";PlayerSettings.bundleVersion="0.7.2";PlayerSettings.Android.bundleVersionCode=12;
+        PlayerSettings.productName="Quest Body Driven Avatar";PlayerSettings.bundleVersion="0.8.0";PlayerSettings.Android.bundleVersionCode=13;
         PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android,AppId);
         EditorBuildSettings.scenes=new[]{new EditorBuildSettingsScene(ScenePath,true)};
         AssetDatabase.SaveAssets();Validate();
@@ -92,7 +96,7 @@ public static class QuestBodyAvatarSetup
         if(report.summary.result!=BuildResult.Succeeded)throw new BuildFailedException("Body avatar build failed.");
         Debug.Log("[BodyAvatar] APK build succeeded.");
     }
-    public static void BuildAndPreview(){Build();Preview();QuestMirrorSetup.RenderControlPreview();}
+    public static void BuildAndPreview(){Build();Preview();QuestMirrorSetup.RenderControlPreview();PilotPreview.Render();}
     public static void Preview()
     {
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
