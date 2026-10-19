@@ -8,23 +8,27 @@ using QuestResearch.BodyCalibration;
 namespace QuestResearch.Embodiment
 {
     // Guided engineering demonstration, not a clinical protocol or research-data recorder.
-    // All interaction uses physical hands; conditions only affect the avatar mapping.
+    // Head-directed dwell interaction stays independent of manipulated hand poses.
     public sealed class PilotWalkthrough : MonoBehaviour
     {
-        public enum Page { Welcome, Table, Fit, Ready, Settings, Running, Aligning, HeightEntry, SurfaceCapture, SurfaceTools, Touch, TouchActive }
+        public enum Page { Welcome, SkinTone, Calibration, Table, Fit, Ready, Settings, Running, Aligning, HeightEntry, SurfaceCapture, SurfaceTools, Comfort, MirrorIntro, FutureTouch, Finished }
         [SerializeField] SeatedSetup setup;
         [SerializeField] HandTrackingSource hands;
         [SerializeField] BodyTrackingProbe body;
         [SerializeField] Transform head;
         [SerializeField] Material idleMaterial, hoverMaterial;
         [SerializeField] Font font;
-        Transform panel,card,quickButton;
+        Transform panel,card; Mesh roundedMesh;
         RestingSurfaceCalibration surfaceCapture;
         BodyArmTargets fittedArms;
-        ForearmTouchStroke touch;TextMesh touchHud;
+        TextMesh stageLabel; Transform gazeDot; Material dotMaterial;
+        readonly GuidedDemoActivity activity=new GuidedDemoActivity();
+        int skinTone=2,lastPrompt=-1; bool mirrorActivity;
+        Page resumePage=Page.Ready;
+        readonly Material[] swatches=new Material[5];
         Material cardMaterial,uiIdle,uiHover,uiText;
         GazeProgressRing progressRing;
-        TextMesh heading,instructions,status,quickText;
+        TextMesh heading,instructions,status;
         readonly Transform[] buttons=new Transform[16];
         readonly TextMesh[] texts=new TextMesh[16];
         readonly Renderer[] renderers=new Renderer[16];
@@ -33,13 +37,9 @@ namespace QuestResearch.Embodiment
         readonly Vector2[] sizes=new Vector2[16];
         bool inches;
         string heightEntry="";
-        readonly Vector3[] quickCentre={new Vector3(.30f,-.12f,0)};
-        readonly Vector2[] quickSize={new Vector2(.19f,.065f)};
-        readonly PinchLatch left=new PinchLatch(),right=new PinchLatch();
         Page page=Page.Welcome;
-        bool placed,wasFocused=true,demoActive;
-        float knownHeight;
-        string affected="Not specified",notice="",alignmentFailure="";
+        bool placed,wasFocused=true;
+        string notice="",alignmentFailure="";
         double alignAt=-1,stableSince=-1,nextText,nextFloorRetry;
         StreamWriter events;
         readonly PilotDwell dwell=new PilotDwell();
@@ -63,8 +63,8 @@ namespace QuestResearch.Embodiment
         public void BuildUI()
         {
             var overlay=Resources.Load<Shader>("PilotOverlay");
-            uiIdle=new Material(overlay){color=idleMaterial.color,renderQueue=4010};
-            uiHover=new Material(overlay){color=hoverMaterial.color,renderQueue=4010};
+            uiIdle=new Material(overlay){color=new Color(.13f,.20f,.26f),renderQueue=4010};
+            uiHover=new Material(overlay){color=new Color(.05f,.42f,.45f),renderQueue=4010};
             uiText=new Material(overlay){mainTexture=font.material.mainTexture,renderQueue=4020};
             uiText.SetFloat("_AlphaOnly",1);
             Font.textureRebuilt+=RefreshFontTexture;
@@ -72,28 +72,44 @@ namespace QuestResearch.Embodiment
             progressRing=new GameObject("Gaze selection progress").AddComponent<GazeProgressRing>();
             progressRing.transform.SetParent(panel,false);progressRing.Initialize(overlay);
             card=new GameObject("Guided setup card").transform;card.SetParent(panel,false);
-            var backdrop=Button("Calibration card background",new Vector3(0,-.04f,.025f),new Vector2(.76f,.76f),card);
-            cardMaterial=new Material(overlay){color=new Color(.055f,.075f,.09f),renderQueue=4000};
+            var backdrop=Button("Calibration card background",new Vector3(0,0,.025f),new Vector2(1.12f,.86f),card);
+            cardMaterial=new Material(overlay){color=new Color(.035f,.055f,.075f),renderQueue=4000};
             backdrop.GetComponent<Renderer>().sharedMaterial=cardMaterial;
-            heading=Label("",new Vector3(0,.245f,-.008f),.0044f,card);
-            instructions=Label("",new Vector3(0,.095f,-.008f),.0034f,card);
-            status=Label("",new Vector3(0,-.37f,-.008f),.0028f,card);
+            heading=Label("",new Vector3(0,.29f,-.008f),.006f,card);
+            instructions=Label("",new Vector3(0,.13f,-.008f),.0042f,card);
+            status=Label("",new Vector3(0,-.365f,-.008f),.0031f,card);
             Layout(false);
             for(int i=0;i<buttons.Length;i++)
-            {buttons[i]=Button("Pilot action "+i,centres[i],sizes[i],card);renderers[i]=buttons[i].GetComponent<Renderer>();texts[i]=Label("",centres[i]-Vector3.forward*.008f,.0032f,card);}
-            quickButton=Button("Pilot settings",new Vector3(.30f,-.12f,0),new Vector2(.19f,.065f),panel);
-            quickText=Label("Settings",new Vector3(.30f,-.12f,-.008f),.0034f,quickButton);
-            quickText.transform.localPosition=new Vector3(0,0,-.008f);
-            // Buttons have metre-sized transforms; text is a sibling so it is not stretched by cube scale.
-            quickText.transform.SetParent(panel,false);quickText.transform.localPosition=new Vector3(.30f,-.12f,-.008f);
-            touchHud=Label("",new Vector3(0,0,-.008f),.004f,panel);
+            {buttons[i]=Button("Pilot action "+i,centres[i],sizes[i],card);renderers[i]=buttons[i].GetComponent<Renderer>();texts[i]=Label("",centres[i]-Vector3.forward*.008f,.0038f,card);}
+            stageLabel=Label("MIRROR THERAPY  /  GUIDED DEMO",new Vector3(0,.375f,-.008f),.0028f,card);
+            stageLabel.color=new Color(.35f,.86f,.83f);
+            for(int i=0;i<5;i++)swatches[i]=new Material(overlay){color=DemoSkinPalette.Colours[i],renderQueue=4010};
+            gazeDot=Button("Head gaze cursor",Vector3.zero,new Vector2(.007f,.007f),panel);
+            dotMaterial=new Material(overlay){color=Color.white,renderQueue=4040};
+            gazeDot.GetComponent<Renderer>().sharedMaterial=dotMaterial;
             Show(Page.Welcome);panel.gameObject.SetActive(false);
         }
         Transform Button(string name,Vector3 position,Vector2 size,Transform parent)
         {
-            var go=GameObject.CreatePrimitive(PrimitiveType.Cube);go.name=name;go.transform.SetParent(parent,false);
+            var go=new GameObject(name,typeof(MeshFilter),typeof(MeshRenderer));go.transform.SetParent(parent,false);
+            if(roundedMesh==null)roundedMesh=CreateRoundedMesh();
+            go.GetComponent<MeshFilter>().sharedMesh=roundedMesh;
             go.transform.localPosition=position+Vector3.forward*.004f;go.transform.localScale=new Vector3(size.x,size.y,.008f);
-            Destroy(go.GetComponent<Collider>());go.GetComponent<Renderer>().sharedMaterial=uiIdle;return go.transform;
+            go.GetComponent<Renderer>().sharedMaterial=uiIdle;return go.transform;
+        }
+        static Mesh CreateRoundedMesh()
+        {
+            const int segments=8;var vertices=new Vector3[1+4*(segments+1)];
+            var triangles=new int[(vertices.Length-1)*3];
+            for(int corner=0;corner<4;corner++)
+            {
+                float start=corner*90;
+                Vector2 centre=new Vector2(corner==0||corner==3?.43f:-.43f,corner<2?.43f:-.43f);
+                for(int step=0;step<=segments;step++)
+                {float a=(start+step*90f/segments)*Mathf.Deg2Rad;vertices[1+corner*(segments+1)+step]=centre+new Vector2(Mathf.Cos(a),Mathf.Sin(a))*.07f;}
+            }
+            for(int i=0;i<vertices.Length-1;i++){triangles[i*3]=0;triangles[i*3+1]=i+1;triangles[i*3+2]=(i+1)%(vertices.Length-1)+1;}
+            var mesh=new Mesh{name="Guided UI rounded panel"};mesh.vertices=vertices;mesh.triangles=triangles;mesh.RecalculateBounds();return mesh;
         }
         TextMesh Label(string text,Vector3 position,float size,Transform parent)
         {
@@ -103,15 +119,21 @@ namespace QuestResearch.Embodiment
         }
         public void Show(Page next)
         {
-            if(touch!=null&&touch.Active&&next!=Page.TouchActive)touch.Stop("Left touch view");
-            page=next;placed=false;left.Reset();right.Reset();dwell.Block(lastHovered);nextText=0;
+            page=next;placed=false;dwell.Block(lastHovered);nextText=0;
+            Record("stage_entered");
             if(card==null)return;
             progressRing.SetProgress(Vector3.zero,0,false);
-            card.gameObject.SetActive(next!=Page.Running && next!=Page.Aligning && next!=Page.TouchActive);
-            quickButton.gameObject.SetActive(next==Page.Running||next==Page.TouchActive);quickText.gameObject.SetActive(next==Page.Running||next==Page.TouchActive);
-            quickText.text=next==Page.TouchActive?"Stop touch":"Settings";
-            if(touchHud!=null){touchHud.gameObject.SetActive(next==Page.TouchActive);if(next==Page.TouchActive)touchHud.text=touch==null?"Touch begins in 3\nReal Left -> virtual Right":touch.Message;}
+            card.gameObject.SetActive(next!=Page.Aligning);
             panel.gameObject.SetActive(next!=Page.Aligning);
+            gazeDot.gameObject.SetActive(false);
+            bool compact=next==Page.Running;
+            card.GetChild(0).localScale=new Vector3(1.12f,compact?.43f:.86f,.008f);
+            card.GetChild(0).localPosition=new Vector3(0,compact?.12f:0,.029f);
+            heading.transform.localPosition=new Vector3(0,compact?.265f:.29f,-.008f);
+            heading.characterSize=compact?.0044f:.006f;
+            instructions.transform.localPosition=new Vector3(0,compact?.145f:.13f,-.008f);
+            status.transform.localPosition=new Vector3(0,compact?-.055f:-.365f,-.008f);
+            stageLabel.gameObject.SetActive(!compact);
             Layout(next==Page.HeightEntry);
             RefreshText();
         }
@@ -119,8 +141,11 @@ namespace QuestResearch.Embodiment
         {
             for(int i=0;i<16;i++)
             {
-                centres[i]=keypad?new Vector3((i%4-1.5f)*.155f,-.065f-(i/4)*.085f,0):new Vector3(i%2==0?-.155f:.155f,-.12f-(i/2)*.085f,0);
-                sizes[i]=new Vector2(keypad?.14f:.29f,.065f);
+                centres[i]=keypad?new Vector3((i%4-1.5f)*.24f,-.025f-(i/4)*.085f,0):new Vector3(i%2==0?-.255f:.255f,-.09f-(i/2)*.095f,0);
+                sizes[i]=new Vector2(keypad?.22f:.48f,.08f);
+                if(page==Page.Running)centres[i]=new Vector3(i%2==0?-.255f:.255f,.025f,0);
+                if(page==Page.SkinTone&&i<5){centres[i]=new Vector3((i-2)*.20f,-.055f,0);sizes[i]=new Vector2(.18f,.11f);}
+                if(page==Page.SkinTone&&i==5){centres[i]=new Vector3(0,-.24f,0);sizes[i]=new Vector2(.48f,.08f);}
                 if(buttons[i]!=null){buttons[i].localPosition=centres[i]+Vector3.forward*.004f;buttons[i].localScale=new Vector3(sizes[i].x,sizes[i].y,.008f);texts[i].transform.localPosition=centres[i]-Vector3.forward*.008f;}
             }
         }
@@ -135,7 +160,7 @@ namespace QuestResearch.Embodiment
         {
             if(fittedArms!=null)fittedArms.ClearFit();
             if(setup!=null)setup.SurfacePreview=false;
-            demoActive=false;notice="";alignmentFailure="";Record("alignment_requested");
+            notice="";alignmentFailure="";Record("alignment_requested");
             if(setup!=null)setup.PrepareFloorOrigin();
             nextFloorRetry=Time.realtimeSinceStartupAsDouble+1;
             // Hide ALL controls for the whole alignment interval. Do not require looking at a countdown.
@@ -147,8 +172,8 @@ namespace QuestResearch.Embodiment
             var forward=Vector3.ProjectOnPlane(head.forward,Vector3.up).normalized;
             if(forward.sqrMagnitude<.5f)return;
             // Keep the entire panel above the hand workspace rather than in front of the lap.
-            Vector3 position=head.position+forward*1.15f+Vector3.up*.32f;
-            if(setup!=null&&setup.Aligned)position.y=Mathf.Max(position.y,setup.BodyFrame.position.y+setup.Parameters.tableHeight+.65f);
+            Vector3 position=head.position+forward*1.4f+Vector3.up*.18f;
+            if(setup!=null&&setup.Aligned)position.y=Mathf.Max(position.y,setup.BodyFrame.position.y+setup.Parameters.tableHeight+.68f);
             panel.SetPositionAndRotation(position,Quaternion.LookRotation(forward,Vector3.up));placed=true;
         }
         bool HandsReady=>hands!=null && hands.Left.Availability==HandAvailability.Available && hands.Right.Availability==HandAvailability.Available;
@@ -157,20 +182,6 @@ namespace QuestResearch.Embodiment
         void Update()
         {
             if(panel==null)return;
-            if(touch==null)
-            {
-                touch=gameObject.AddComponent<ForearmTouchStroke>();
-                touch.Configure(setup,hands,GetComponent<SeatedAvatarDisplay>(),idleMaterial);
-                touch.Event+=RecordTouch;
-                gameObject.AddComponent<ManualTouchCommands>().Configure(touch);
-            }
-            // Researcher commands enter the same compact countdown/stop view.
-            if(touch.Active&&page!=Page.TouchActive)Show(Page.TouchActive);
-            if(page==Page.TouchActive)
-            {
-                touchHud.text=touch.Message+"\nReal "+touch.PhysicalSide+" -> virtual "+(PhysicalHand)touch.VisualSide;
-                if(!touch.Active){notice=touch.Message;Show(Page.Touch);}
-            }
             if(surfaceCapture==null)
             {
                 fittedArms=GetComponent<BodyArmTargets>();
@@ -179,8 +190,8 @@ namespace QuestResearch.Embodiment
             }
             if(!Application.isFocused || !setup.HeadTracked || !OpenXRUtility.IsUserPresent)
             {
-                touch.Stop("Tracking or presence lost");surfaceCapture.Cancel();panel.gameObject.SetActive(false);placed=false;stableSince=-1;left.Reset();right.Reset();
-                if(wasFocused){Record("tracking_or_focus_lost");demoActive=false;page=Page.Welcome;alignAt=-1;wasFocused=false;}
+                surfaceCapture.Cancel();panel.gameObject.SetActive(false);placed=false;stableSince=-1;
+                if(wasFocused){Record("tracking_or_focus_lost");page=Page.Welcome;alignAt=-1;wasFocused=false;}
                 return;
             }
             if(!wasFocused){wasFocused=true;if(fittedArms!=null)fittedArms.ClearFit();setup.BeginParticipantSetup();Show(Page.Welcome);}
@@ -198,7 +209,7 @@ namespace QuestResearch.Embodiment
                     alignmentFailure=setup.Aligned?"":setup.Message;
                     placed=false;
                     if(setup.Aligned){surfaceCapture.Begin();Show(Page.SurfaceCapture);}
-                    else Show(Page.Welcome);
+                    else Show(Page.Calibration);
                 }
                 return;
             }
@@ -210,26 +221,26 @@ namespace QuestResearch.Embodiment
             }
             else outsideSince=-1;
             if(!placed)Place();panel.gameObject.SetActive(true);
-            if(page!=Page.Welcome && !setup.Aligned){demoActive=false;notice=setup.Message;Show(Page.Welcome);}
+            if(RequiresAlignment(page) && !setup.Aligned){notice=setup.Message;Show(Page.Calibration);}
+            UpdateActivity();
             if(Time.realtimeSinceStartupAsDouble>=nextText){nextText=Time.realtimeSinceStartupAsDouble+.2;RefreshText();}
-            bool click=left.Update(hands.Left)|right.Update(hands.Right);
             var origin=panel.InverseTransformPoint(head.position);var direction=panel.InverseTransformDirection(head.forward);
-            if(page==Page.Running||page==Page.TouchActive)
-            {
-                int hit=SeatedTestControls.HitButton(origin,direction,quickCentre,quickSize);
-                quickButton.GetComponent<Renderer>().sharedMaterial=hit==0?uiHover:uiIdle;
-                lastHovered=hit==0?16:-1;
-                bool dwellClick=dwell.Update(lastHovered,Time.unscaledDeltaTime);
-                progressRing.SetProgress(quickCentre[0]+new Vector3(.068f,0,-.02f),dwell.Progress,hit==0);
-                if((click||dwellClick)&&hit==0){if(page==Page.TouchActive){touch.Stop();Show(Page.Touch);}else{Record("demo_pause");Show(Page.Settings);}}return;
-            }
+            bool intersects=direction.z>.001f;
+            Vector3 point=intersects?origin+direction*(-origin.z/direction.z):Vector3.zero;
+            gazeDot.gameObject.SetActive(intersects&&Mathf.Abs(point.x)<.56f&&Mathf.Abs(point.y)<.43f);
+            gazeDot.localPosition=new Vector3(point.x,point.y,-.035f);
             int hovered=SeatedTestControls.HitButton(origin,direction,centres,sizes);
             lastHovered=hovered>=0&&available[hovered]?hovered:-1;
             bool selected=dwell.Update(lastHovered,Time.unscaledDeltaTime);
             progressRing.SetProgress(lastHovered>=0?centres[lastHovered]+new Vector3(sizes[lastHovered].x*.5f-.024f,0,-.02f):Vector3.zero,dwell.Progress,lastHovered>=0);
-            for(int i=0;i<16;i++)renderers[i].sharedMaterial=i==hovered&&available[i]?uiHover:uiIdle;
-            if(lastHovered>=0)status.text="Hold gaze to select: "+Mathf.CeilToInt((1-dwell.Progress)*2)+" seconds\nOr pinch thumb + index.";
-            if((click||selected)&&hovered>=0&&available[hovered])Act(hovered);
+            for(int i=0;i<16;i++)
+            {
+                bool highlighted=i==hovered&&available[i];
+                renderers[i].sharedMaterial=highlighted?uiHover:page==Page.SkinTone&&i<5?swatches[i]:uiIdle;
+                if(page==Page.SkinTone&&i<5)texts[i].color=highlighted||i>=3?Color.white:new Color(.08f,.06f,.05f);
+            }
+            if(lastHovered>=0)status.text=dwell.NeedsGazeExit?"Move the dot off the buttons, then aim to select.":"Selecting: "+texts[lastHovered].text.Replace("\n"," ")+"  |  "+Mathf.CeilToInt((1-dwell.Progress)*2)+" seconds";
+            if(selected&&hovered>=0&&available[hovered])Act(hovered);
         }
         void Set(int i,string label,bool enabled=true){texts[i].text=label;available[i]=enabled&&label.Length>0;texts[i].color=enabled?Color.white:Color.gray;buttons[i].gameObject.SetActive(label.Length>0);texts[i].gameObject.SetActive(label.Length>0);}
         void RefreshText()
@@ -237,19 +248,29 @@ namespace QuestResearch.Embodiment
             if(heading==null)return;
             for(int i=0;i<16;i++)Set(i,"");
             float height=setup==null?.74f:setup.Parameters.tableHeight;
-            string mode=setup==null?"Normal":setup.Parameters.movementCondition.ToString();
-            status.text="Look at a button for 2 seconds, or pinch thumb + index.\n"+notice;
+            stageLabel.text=StageCaption(page);
+            for(int n=0;n<16;n++)renderers[n].sharedMaterial=page==Page.SkinTone&&n<5?swatches[n]:uiIdle;
+            status.text="Aim the centre dot at a button. Hold still for 2 seconds.";
             switch(page)
             {
                 case Page.Welcome:
-                    heading.text="1 / 4   Welcome";
-                    instructions.text="Sit comfortably at a real table.\nKeep only the wearer's hands in view.\nLook ahead during the 4-second alignment.\nThen rest palms flat for automatic table fit.\nHeight: "+(knownHeight>0?(knownHeight*100).ToString("F0")+" cm (standing height)":"automatic estimate - verify fit");
-                    if(alignmentFailure.Length>0){heading.text="Alignment needs attention";instructions.text=alignmentFailure+"\n\nThen select Begin alignment again.";}
-                    Set(0,"Height -5 cm");Set(1,"Height +5 cm");Set(2,"Use automatic");Set(3,"Begin alignment");break;
+                    heading.text="Welcome";
+                    instructions.text="A seated experience of virtual arms and hands.\nChoose your appearance, fit your table, then explore\nhow your movements appear on the opposite side.\nMove only as much as feels comfortable.";
+                    Set(5,"Let's begin");break;
+                case Page.SkinTone:
+                    heading.text="Make these hands yours";
+                    instructions.text="Choose a skin tone for both hands and arms.\nLook down to preview your selection.\nSelected: "+DemoSkinPalette.Names[skinTone];
+                    for(int n=0;n<5;n++){Set(n,(skinTone==n?"Selected\n":"")+DemoSkinPalette.Names[n]);texts[n].color=n<3?new Color(.08f,.06f,.05f):Color.white;}
+                    Set(5,"Continue");break;
+                case Page.Calibration:
+                    heading.text="Get comfortable";
+                    instructions.text="Sit at your table with feet comfortably supported.\nSelect Begin alignment, then look straight ahead.\nThe menu disappears for 4 seconds.\nNext, rest both palms flat to estimate table height.";
+                    if(alignmentFailure.Length>0)instructions.text=alignmentFailure+"\nPlease try alignment again.";
+                    Set(4,"Back");Set(5,"Begin alignment");break;
                 case Page.Table:
-                    heading.text="2 / 4   Fit the support surface";
-                    instructions.text="First: Estimate from hands.\nRest both palms on the real table.\nThen verify the height and near edge.\nThis is an estimate; confirm against reality.\nHeight "+(height*100).ToString("F1")+" cm  |  Edge "+((setup==null?.18f:setup.Parameters.tableNearEdge)*100).ToString("F0")+" cm";
-                    if(notice.Length>0){instructions.text=notice;status.text="Check fit, then Confirm surface. Gaze or pinch to select.";}
+                    heading.text="Check your table";
+                    instructions.text="Rest both palms on the real table.\nCheck that the virtual surface matches.\nAdjust or estimate again if needed.\nHeight "+(height*100).ToString("F1")+" cm  |  Edge "+((setup==null?.18f:setup.Parameters.tableNearEdge)*100).ToString("F0")+" cm";
+                    if(notice.Length>0){instructions.text=notice;status.text="Check the surface, then hold gaze on Confirm surface.";}
                     Set(0,"Lower 1 cm");Set(1,"Raise 1 cm");Set(2,"Estimate from hands");Set(3,"More surface options");Set(4,"Enter exact height");Set(5,"Confirm surface",setup==null||setup.SurfacePreview);break;
                 case Page.SurfaceCapture:
                     heading.text="Rest hands on the REAL table";
@@ -260,42 +281,60 @@ namespace QuestResearch.Embodiment
                     Set(0,"Edge closer 2 cm");Set(1,"Edge farther 2 cm");Set(5,"Back");break;
                 case Page.HeightEntry:
                     heading.text="Enter measured table height";
-                    instructions.text="Floor to tabletop - "+(inches?"inches":"centimetres")+"\n"+(heightEntry.Length==0?"_":heightEntry)+"\n"+"Allowed: "+(inches?"17.8 - 43.3 in":"45 - 110 cm");
+                    instructions.text="Floor to tabletop - "+(inches?"inches":"centimetres")+"\n"+(heightEntry.Length==0?"_":heightEntry)+"\n"+"Allowed: "+(inches?"17.8 - 43.3 in":"45 - 110 cm")+(notice.Length>0?"\n"+notice:"");
                     string[] keys={"1","2","3","Back","4","5","6","Clear","7","8","9",inches?"in":"cm",".","0","Save","Cancel"};
                     for(int i=0;i<16;i++)Set(i,keys[i]);break;
                 case Page.Fit:
-                    heading.text="3 / 4   Check embodiment";
+                    heading.text="Check your arm fit";
                     instructions.text="Check both wrists, elbows and shoulders.\nRest, lift, and slowly turn each hand.\nUse only comfortable movement.\nShoulders/elbows are estimates, not a scan.\n"+(FitReady?"Tracking ready - confirm the visual fit.":"Fit pending: use Estimate from hands,\nthen check tracking and joint markers.");
                     Set(0,"Arms slimmer");Set(1,"Arms fuller");Set(2,"Table rest "+(setup==null||setup.Parameters.tableContactEnabled?"ON":"OFF"));Set(3,"Adjust table");Set(4,"Realign (4 sec)");Set(5,"Fit looks correct",FitReady);break;
                 case Page.Ready:
-                    heading.text="4 / 4   Movement demo";
-                    instructions.text="Choose a mapping, then start.\nMove one hand slowly, then the other.\nCompare physical and virtual sides.\nMode: "+mode+"\nAffected side: "+affected+" (demo label)";
-                    Set(0,"Normal");Set(1,"Left to right");Set(2,"Right to left");Set(3,"Swap both sides");Set(4,"Settings");Set(5,"Start demo",FitReady);break;
-                case Page.Touch:
-                    heading.text="Manual forearm touch";
-                    instructions.text="Clinician strokes the REAL "+(touch==null?"Left":touch.PhysicalSide.ToString())+" forearm.\nVisual stroke: "+(touch==null?"Right":((PhysicalHand)touch.VisualSide).ToString())+" forearm, elbow to wrist.\nRest palms down; follow the 3-second cue.\n"+(touch==null?4:touch.Duration).ToString("F0")+" second stroke. No automatic touch sensing.";
-                    Set(0,"Real side: "+(touch==null?"Left":touch.PhysicalSide.ToString()));Set(1,touch==null||touch.CrossLimb?"Cross-limb":"Congruent");
-                    Set(2,"Duration -1 sec");Set(3,"Duration +1 sec");if(notice.Length>0)instructions.text=notice+"\n\nRelease pinch and rest both hands flat.\nThen select Start countdown again.";
-                    Set(4,"Start countdown");Set(5,"Back");break;
+                    heading.text="Meet your virtual hands";
+                    instructions.text="First, each hand moves on its own side.\nFollow gentle prompts for about 20 seconds.\nYou can pause or skip an activity at any time.\nKeep movements small and comfortable.";
+                    Set(4,"Adjust fit");Set(5,"Start familiarisation",setup==null||FitReady);break;
+                case Page.Running:
+                    heading.text=(mirrorActivity?"OPPOSITE-SIDE MOVEMENT":"GETTING FAMILIAR")+"  |  "+activity.Remaining+" s";
+                    instructions.text=activity.Prompt;
+                    Set(0,"Pause");Set(1,"Skip activity");break;
+                case Page.Comfort:
+                    heading.text="How does it feel?";
+                    instructions.text="Take a moment to rest your hands.\nDo the arms and table feel comfortably aligned?\nContinue when you are ready, or adjust the fit.";
+                    Set(2,"Adjust fit");Set(3,"Repeat practice");Set(4,"End demo");Set(5,"I feel ready");break;
+                case Page.MirrorIntro:
+                    heading.text="Explore the opposite side";
+                    instructions.text="Your real left hand will move the virtual right.\nYour real right hand will move the virtual left.\nBoth virtual hands stay visible when tracked.\nFollow six gentle prompts, about 10 seconds each.";
+                    Set(4,"Back");Set(5,"Begin mirror experience",setup==null||FitReady);break;
+                case Page.FutureTouch:
+                    heading.text="Coming next: visual touch";
+                    instructions.text="A future clinician-guided stage will pair a stroke\non one real forearm with a visible stroke\non the opposite virtual forearm.\nHaptic-glove integration: to be implemented.\nNo touch sensing or stimulation is active here.";
+                    Set(5,"Finish");break;
+                case Page.Finished:
+                    heading.text="Thank you for participating";
+                    instructions.text="The demo is complete.\nYou can now take off the headset.\n\nThis was a research demonstration.";
+                    Set(5,"New participant");break;
                 case Page.Settings:
-                    heading.text="Pilot settings";
-                    instructions.text="Mode: "+mode+"\nAffected side: "+affected+"\nRecalibration hides the menu for 4 seconds.\nClinician hand tracking is not available.\nDo not present this as an automated touch trial.";
-                    Set(0,"New wearer");Set(1,"Realign (4 sec)");Set(2,"Surface height");Set(3,"Affected: "+affected);Set(4,"Touch demo");Set(5,demoActive?"Resume":"Close",setup!=null&&setup.Aligned);break;
+                    heading.text="Take your time";
+                    instructions.text=(notice.Length>0?notice+"\n":"The experience is paused.\n")+"Rest your hands or adjust your position.\nRecalibration restarts familiarisation.\nResume when tracking and fit are ready.";
+                    Set(0,"Recalibrate");Set(1,"Adjust table");Set(4,"End demo");Set(5,"Resume",setup==null||FitReady);break;
+
             }
         }
         void Act(int i)
         {
             switch(page)
             {
-                case Page.Welcome:
-                    if(i<2)knownHeight=Mathf.Clamp((knownHeight>0?knownHeight:1.70f)+(i==0?-.05f:.05f),.5f,2.5f);
-                    if(i==2)knownHeight=0;
-                    if(i==3){setup.BeginParticipantSetup();body.BeginParticipant(knownHeight);BeginAlignment();}break;
+                case Page.Welcome: if(i==5)Show(Page.SkinTone);break;
+                case Page.SkinTone:
+                    if(i<5){skinTone=i;GetComponent<SeatedAvatarDisplay>()?.SetSkinTone(DemoSkinPalette.Colours[i]);Record("skin_tone_selected");}
+                    if(i==5)Show(Page.Calibration);break;
+                case Page.Calibration:
+                    if(i==4)Show(Page.SkinTone);
+                    if(i==5){setup.BeginParticipantSetup();body.BeginParticipant(0);BeginAlignment();}break;
                 case Page.Table:
                     if(i==0||i==1){notice="";setup.AdjustTableHeight(i==0?-.01f:.01f);Record("surface_height_step");}
                     if(i==2){surfaceCapture.Begin();notice="";Show(Page.SurfaceCapture);}
                     if(i==3)Show(Page.SurfaceTools);
-                    if(i==4){heightEntry="";Show(Page.HeightEntry);}
+                    if(i==4){heightEntry="";notice="";Show(Page.HeightEntry);}
                     if(i==5){if(fittedArms!=null&&!fittedArms.HasFit)fittedArms.CaptureFit();setup.ConfirmTable();Record("table_confirmed");Show(Page.Fit);}break;
                 case Page.SurfaceCapture:
                     if(i==5){surfaceCapture.Cancel();Show(Page.Table);}break;
@@ -323,43 +362,71 @@ namespace QuestResearch.Embodiment
                     if(i==3)Show(Page.Table);if(i==4)BeginAlignment();
                     if(i==5&&FitReady){Record("fit_confirmed");Show(Page.Ready);}break;
                 case Page.Ready:
-                    if(i<4){setup.SetMovement((MovementCondition)i,true);Record("mapping_selected");}
-                    if(i==4)Show(Page.Settings);
-                    if(i==5&&FitReady){demoActive=true;Record("demo_start");Show(Page.Running);}break;
-                case Page.Touch:
-                    if(i==0)touch.SetOptions(touch.PhysicalSide==PhysicalHand.Left?PhysicalHand.Right:PhysicalHand.Left,touch.CrossLimb,touch.Duration);
-                    if(i==1)touch.SetOptions(touch.PhysicalSide,!touch.CrossLimb,touch.Duration);
-                    if(i==2||i==3)touch.SetOptions(touch.PhysicalSide,touch.CrossLimb,Mathf.Clamp(touch.Duration+(i==2?-1:1),2,8));
-                    if(i==4){if(touch.StartStroke()){notice="";Show(Page.TouchActive);}else notice=touch.Message;}
-                    if(i==5)Show(Page.Settings);break;
+                    if(i==4)Show(Page.Fit);if(i==5&&FitReady)StartActivity(false);break;
+                case Page.Running:
+                    if(i==0){resumePage=Page.Running;notice="";Record("activity_paused");Show(Page.Settings);}
+                    if(i==1){Record("activity_skipped");activity.SkipPrompt();lastPrompt=-1;}break;
+                case Page.Comfort:
+                    if(i==2)Show(Page.Fit);if(i==3)StartActivity(false);
+                    if(i==4)Finish();if(i==5)Show(Page.MirrorIntro);break;
+                case Page.MirrorIntro:
+                    if(i==4)Show(Page.Comfort);if(i==5&&FitReady)StartActivity(true);break;
+                case Page.FutureTouch: if(i==5)Finish();break;
+                case Page.Finished:
+                    if(i==5){skinTone=2;GetComponent<SeatedAvatarDisplay>()?.SetSkinTone(DemoSkinPalette.Colours[2]);fittedArms?.ClearFit();setup.BeginParticipantSetup();Record("new_participant");Show(Page.Welcome);}break;
                 case Page.Settings:
-                    if(i==0){demoActive=false;knownHeight=0;affected="Not specified";if(fittedArms!=null)fittedArms.ClearFit();setup.BeginParticipantSetup();Record("new_wearer");Show(Page.Welcome);}
-                    if(i==1)BeginAlignment();if(i==2){demoActive=false;Show(Page.Table);}
-                    if(i==3)affected=affected=="Not specified"?"Left":affected=="Left"?"Right":"Not specified";
-                    if(i==4){demoActive=false;Record("demo_end");notice="";Show(Page.Touch);}
-                    if(i==5)Show(demoActive?Page.Running:Page.Ready);break;
+                    if(i==0){body.BeginParticipant(0);BeginAlignment();}
+                    if(i==1){setup.SetMovement(MovementCondition.Normal,true);Show(Page.Table);}
+                    if(i==4)Finish();
+                    if(i==5&&FitReady){notice="";Record("activity_resumed");Show(resumePage);}break;
+
             }
             RefreshText();
         }
-        void RecordTouch(ForearmTouchStroke.TouchEvent item)
+        static string StageCaption(Page p)
         {
-            try{events?.WriteLine(JsonUtility.ToJson(item));}
-            catch(Exception ex) when(ex is IOException||ex is UnauthorizedAccessException){notice="Touch event log unavailable";Debug.LogWarning("[Pilot] "+ex.Message);}
+            switch(p)
+            {
+                case Page.Welcome:return "01 / 07   WELCOME";
+                case Page.SkinTone:return "02 / 07   YOUR APPEARANCE";
+                case Page.Ready:case Page.Comfort:return "04 / 07   FAMILIARISATION";
+                case Page.MirrorIntro:return "05 / 07   MIRROR EXPERIENCE";
+                case Page.FutureTouch:return "06 / 07   FUTURE TOUCH";
+                case Page.Finished:return "07 / 07   COMPLETE";
+                case Page.Settings:return "EXPERIENCE PAUSED";
+                default:return "03 / 07   PERSONAL FIT";
+            }
         }
+        static bool RequiresAlignment(Page p)=>p!=Page.Welcome&&p!=Page.SkinTone&&p!=Page.Calibration&&p!=Page.Finished;
+        void StartActivity(bool mirrored)
+        {
+            mirrorActivity=mirrored;activity.Begin(mirrored);lastPrompt=-1;
+            setup.SetMovement(mirrored?MovementCondition.SwapBoth:MovementCondition.Normal,true);
+            Record("automatic_mapping_selected");Show(Page.Running);
+        }
+        void UpdateActivity()
+        {
+            if(page!=Page.Running)return;
+            if(!FitReady){notice="Tracking interrupted. Keep both hands in view.";resumePage=Page.Running;Record("tracking_pause");Show(Page.Settings);return;}
+            activity.Advance(Time.unscaledDeltaTime);
+            if(activity.PromptIndex!=lastPrompt){lastPrompt=activity.PromptIndex;Record("activity_prompt");}
+            if(activity.Complete){Record("activity_complete");Show(mirrorActivity?Page.FutureTouch:Page.Comfort);}
+        }
+        void Finish(){setup.SetMovement(MovementCondition.Normal,true);Record("demo_finished");Show(Page.Finished);}
         [Serializable] sealed class PilotEvent
         {
-            public string kind,utc,version,affectedSide,movement;public double monotonicSeconds;
+            public string kind,utc,version,affectedSide,movement,stage,skinTone;public double monotonicSeconds;public float activitySeconds;public int promptIndex;
             public float tableHeight,tableNearEdge,standingHeight;public bool tableConfirmed,tableRest;
         }
         void Record(string kind)
         {
             if(setup==null)return;
             var p=setup.Parameters;
-            try{events?.WriteLine(JsonUtility.ToJson(new PilotEvent{kind=kind,utc=DateTime.UtcNow.ToString("O"),version=Application.version,affectedSide=affected,movement=p.movementCondition.ToString(),monotonicSeconds=Time.realtimeSinceStartupAsDouble,tableHeight=p.tableHeight,tableNearEdge=p.tableNearEdge,standingHeight=knownHeight,tableConfirmed=p.tableAlignmentConfirmed,tableRest=p.tableContactEnabled}));}
+            try{events?.WriteLine(JsonUtility.ToJson(new PilotEvent{kind=kind,stage=page.ToString(),skinTone=DemoSkinPalette.Names[skinTone],activitySeconds=activity.Elapsed,promptIndex=activity.PromptIndex,utc=DateTime.UtcNow.ToString("O"),version=Application.version,affectedSide="Not collected in guided demo",movement=p.movementCondition.ToString(),monotonicSeconds=Time.realtimeSinceStartupAsDouble,tableHeight=p.tableHeight,tableNearEdge=p.tableNearEdge,standingHeight=0,tableConfirmed=p.tableAlignmentConfirmed,tableRest=p.tableContactEnabled}));}
             catch(Exception ex) when(ex is IOException||ex is UnauthorizedAccessException){notice="Demo event log failed";Debug.LogWarning("[Pilot] "+ex.Message);events=null;}
         }
-        void OnApplicationPause(bool paused){if(paused){Record("app_paused");demoActive=false;alignAt=-1;page=Page.Welcome;placed=false;wasFocused=false;if(panel!=null)panel.gameObject.SetActive(false);}}
+        void OnApplicationPause(bool paused){if(paused){Record("app_paused");alignAt=-1;page=Page.Welcome;placed=false;wasFocused=false;if(panel!=null)panel.gameObject.SetActive(false);}}
         void RefreshFontTexture(Font updated){if(updated==font&&uiText!=null)uiText.mainTexture=font.material.mainTexture;}
-        void OnDestroy(){if(touch!=null){touch.Stop("App closing");touch.Event-=RecordTouch;}Font.textureRebuilt-=RefreshFontTexture;Record("app_stop");events?.Dispose();if(panel!=null)Destroy(panel.gameObject);if(cardMaterial!=null)Destroy(cardMaterial);if(uiIdle!=null)Destroy(uiIdle);if(uiHover!=null)Destroy(uiHover);if(uiText!=null)Destroy(uiText);}
+        void OnDestroy(){if(roundedMesh!=null)Destroy(roundedMesh);foreach(var m in swatches)if(m!=null)Destroy(m);if(dotMaterial!=null)Destroy(dotMaterial);Font.textureRebuilt-=RefreshFontTexture;Record("app_stop");events?.Dispose();if(panel!=null)Destroy(panel.gameObject);if(cardMaterial!=null)Destroy(cardMaterial);if(uiIdle!=null)Destroy(uiIdle);if(uiHover!=null)Destroy(uiHover);if(uiText!=null)Destroy(uiText);}
     }
 }

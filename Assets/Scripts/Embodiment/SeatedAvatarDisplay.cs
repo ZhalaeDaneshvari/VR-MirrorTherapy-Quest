@@ -67,8 +67,19 @@ namespace QuestResearch.Embodiment
         float previousTableHeight=-1;
         public void Configure(MovementRemapper targets,SeatedSetup alignment,Transform space,Material skinMaterial,Material shirtMaterial,Material table)
         {mapping=targets;setup=alignment;trackingSpace=space;skin=skinMaterial;shirt=shirtMaterial;tableMaterial=table;}
+        Material runtimeSkin;
+        public void SetSkinTone(Color colour)
+        {
+            if(runtimeSkin==null)runtimeSkin=new Material(skin);
+            runtimeSkin.color=colour;
+            skin=runtimeSkin;
+            foreach(var hand in handMeshes)if(hand!=null)
+                foreach(var renderer in hand.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+                {var materials=renderer.sharedMaterials;for(int i=0;i<materials.Length;i++)materials[i]=runtimeSkin;renderer.sharedMaterials=materials;}
+        }
         void Start()
         {
+            SetSkinTone(DemoSkinPalette.Colours[2]);
             body=new GameObject("Estimated upper body and virtual table").transform;body.SetParent(setup.BodyFrame,false);
             torso=Part("Torso (estimated)",PrimitiveType.Capsule,body,shirt);
             tableTop=Part("Table top - align to physical surface",PrimitiveType.Cube,body,tableMaterial);
@@ -116,6 +127,7 @@ namespace QuestResearch.Embodiment
                 text.font=Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");text.GetComponent<Renderer>().sharedMaterial=text.font.material;
                 text.text=new[]{"Shoulder (estimated)","Elbow (estimated)","Wrist"}[i%3];text.fontSize=40;text.characterSize=.004f;text.anchor=TextAnchor.MiddleCenter;text.color=Color.white;
             }
+            SetSkinTone(runtimeSkin.color);
             ready=true;
         }
         Transform Part(string name,PrimitiveType shape,Transform parent,Material material)
@@ -312,6 +324,6 @@ namespace QuestResearch.Embodiment
             if(ready){body.gameObject.SetActive(false);foreach(var root in handRoots)root.gameObject.SetActive(false);}
         }
         void OnEnable(){lastRenderedFrame=-1;Application.onBeforeRender+=RenderBeforeDisplay;}
-        void OnDestroy(){if(ready){Destroy(body.gameObject);foreach(var root in handRoots)Destroy(root.gameObject);}}
+        void OnDestroy(){if(runtimeSkin!=null)Destroy(runtimeSkin);if(ready){Destroy(body.gameObject);foreach(var root in handRoots)Destroy(root.gameObject);}}
     }
 }

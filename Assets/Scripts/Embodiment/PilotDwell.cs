@@ -4,13 +4,14 @@ namespace QuestResearch.Embodiment
     // One activation per gaze entry. Page changes require leaving the previous target.
     public sealed class PilotDwell
     {
-        int target=-1,blocked=-1;float seconds;bool fired;
+        int target=-1,blocked=-1;float seconds;bool fired,requiresExit;
+        public bool NeedsGazeExit=>requiresExit;
         public float Progress=>Mathf.Clamp01(seconds/2);
-        public void Block(int previous){blocked=previous;target=-1;seconds=0;fired=false;}
+        public void Block(int previous){blocked=previous;requiresExit=previous>=0;target=-1;seconds=0;fired=false;}
         public bool Update(int hit,float delta)
         {
-            if(hit<0){blocked=-1;target=-1;seconds=0;fired=false;return false;}
-            if(hit==blocked)return false;
+            if(hit<0){blocked=-1;requiresExit=false;target=-1;seconds=0;fired=false;return false;}
+            if(requiresExit||hit==blocked)return false;
             blocked=-1;
             if(hit!=target){target=hit;seconds=0;fired=false;}
             seconds+=Mathf.Clamp(delta,0,.1f);
