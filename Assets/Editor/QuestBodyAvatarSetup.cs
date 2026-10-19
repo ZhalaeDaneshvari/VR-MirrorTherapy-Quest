@@ -34,11 +34,15 @@ public static class QuestBodyAvatarSetup
         var targets=origin.GetComponent<BodyArmTargets>()??origin.gameObject.AddComponent<BodyArmTargets>();
         targets.Configure(body,setup,origin.CameraFloorOffsetObject.transform);
         origin.GetComponent<SeatedAvatarDisplay>().ConfigureBodyTargets(targets);
-        // Muted cool table separates warm skin without altering tracked contact positions.
-        Surface("SeatedTable",new Color(.24f,.30f,.32f),.18f);
+        origin.GetComponent<SeatedTestControls>().enabled=false;
+        var pilot=origin.GetComponent<PilotWalkthrough>()??origin.gameObject.AddComponent<PilotWalkthrough>();
+        pilot.Configure(setup,origin.GetComponent<QuestResearch.Hands.HandTrackingSource>(),body,origin.Camera.transform,
+            AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/SetupButton.mat"),AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/SetupButtonHover.mat"),Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
+        // Brown table and light gray floor, as requested.
+        Surface("SeatedTable",new Color(.30f,.16f,.075f),.18f);
         Surface("SeatedSkin",new Color(.69f,.46f,.32f),.28f);
         Surface("SeatedShirt",new Color(.12f,.17f,.20f),.10f);
-        Surface("SeatedFloor",new Color(.49f,.52f,.54f),.05f);
+        Surface("SeatedFloor",new Color(.72f,.73f,.74f),.05f);
         RenderSettings.ambientMode=AmbientMode.Trilight;
         RenderSettings.ambientSkyColor=new Color(.72f,.76f,.8f);
         RenderSettings.ambientEquatorColor=new Color(.45f,.47f,.49f);
@@ -48,7 +52,7 @@ public static class QuestBodyAvatarSetup
         QualitySettings.shadows=ShadowQuality.All;QualitySettings.shadowResolution=ShadowResolution.Medium;QualitySettings.shadowDistance=4;
         origin.Camera.backgroundColor=new Color(.60f,.64f,.67f);
         EditorSceneManager.SaveScene(scene);
-        PlayerSettings.productName="Quest Body Driven Avatar";PlayerSettings.bundleVersion="0.7.2";PlayerSettings.Android.bundleVersionCode=12;
+        PlayerSettings.productName="Quest Body Driven Avatar";PlayerSettings.bundleVersion="0.11.0";PlayerSettings.Android.bundleVersionCode=22;
         PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android,AppId);
         EditorBuildSettings.scenes=new[]{new EditorBuildSettingsScene(ScenePath,true)};
         AssetDatabase.SaveAssets();Validate();
@@ -58,11 +62,44 @@ public static class QuestBodyAvatarSetup
     public static void Validate()
     {
         QuestProjectSetup.Validate();
+        double readySince=-1;
+        if(ForearmTouchStroke.StablePose(false,0,ref readySince)||ForearmTouchStroke.StablePose(true,1,ref readySince)
+            ||ForearmTouchStroke.StablePose(true,1.49,ref readySince)||!ForearmTouchStroke.StablePose(true,1.5,ref readySince)
+            ||ForearmTouchStroke.StablePose(false,1.6,ref readySince)||readySince!=-1||ForearmTouchStroke.StablePose(true,2,ref readySince))
+            throw new BuildFailedException("Touch preparation must wait for a fresh half-second stable pose after pinch/loss.");
+        if(ForearmTouchStroke.CountdownAt(0)!=3||ForearmTouchStroke.CountdownAt(.999)!=3||ForearmTouchStroke.CountdownAt(1)!=2||ForearmTouchStroke.CountdownAt(2)!=1||ForearmTouchStroke.CountdownAt(3)!=0
+            ||ForearmTouchStroke.ProgressAt(-1,4)!=0||ForearmTouchStroke.ProgressAt(2,4)!=.5f||ForearmTouchStroke.ProgressAt(5,4)!=1)
+            throw new BuildFailedException("Touch countdown/progress boundary checks failed.");
+        var heights=new System.Collections.Generic.List<float>();
+        for(int i=0;i<40;i++)heights.Add(.741f+(i%3-1)*.001f);
+        heights[0]=.1f;heights[39]=1.2f;
+        if(!RestingSurfaceCalibration.TryEstimate(heights,out float estimated)||Mathf.Abs(estimated-.740f)>.0011f)
+            throw new BuildFailedException("Resting-surface median rejected a stable window with outliers.");
+        heights[10]=float.NaN;
+        if(RestingSurfaceCalibration.TryEstimate(heights,out _))throw new BuildFailedException("Nonfinite surface sample accepted.");
+        heights.Clear();for(int i=0;i<40;i++)heights.Add(.6f+i*.002f);
+        if(RestingSurfaceCalibration.TryEstimate(heights,out _))throw new BuildFailedException("Moving hands accepted as stable table.");
+        Vector3 shoulder=new Vector3(-.2f,1.1f,0),wrist=new Vector3(-.2f,.78f,.3f);
+        if(!SeatedArmMath.TryElbow(shoulder,wrist,.30f,.26f,Vector3.down,out var elbow)
+            || Mathf.Abs(Vector3.Distance(shoulder,elbow)-.30f)>.0001f || Mathf.Abs(Vector3.Distance(elbow,wrist)-.26f)>.0001f)
+            throw new BuildFailedException("Fixed-length arm fitting stretched a segment.");
+        if(SeatedArmMath.TryElbow(shoulder,shoulder+Vector3.forward,.30f,.26f,Vector3.down,out _))
+            throw new BuildFailedException("Unreachable arm was stretched.");
         var frame=new Pose(new Vector3(2,.4f,-3),Quaternion.Euler(0,67,0));
         var physical=new Pose(frame.position+frame.rotation*new Vector3(-.2f,.7f,.3f),Quaternion.identity);
         var normal=BodyArmTargets.ToBody(physical,false,frame);var reflected=BodyArmTargets.ToBody(physical,true,frame);
         if(Vector3.Distance(normal,new Vector3(-.2f,.7f,.3f))>.00001f||Vector3.Distance(reflected,new Vector3(.2f,.7f,.3f))>.00001f)
             throw new BuildFailedException("Body target reflection/coordinate conversion failed.");
+        // Edge-crossing triangles must be blocked even if their vertices begin outside the footprint.
+        var table=new SeatedParameters();var random=new System.Random(943);
+        for(int n=0;n<500;n++)
+        {
+            var points=new Vector3[3];
+            for(int j=0;j<3;j++)points[j]=new Vector3((float)random.NextDouble()*2-1,(float)random.NextDouble(),(float)random.NextDouble());
+            bool overlap=ContinuousArmSurface.OverlapsTable(points[0],points[1],points[2],table);
+            ContinuousArmSurface.EnforceTableTop(points,new[]{0,1,2},table);
+            if(overlap)foreach(var point in points)if(point.y<table.tableHeight+.00099f)throw new BuildFailedException("Hard tabletop constraint left an intersecting triangle.");
+        }
         var rest=new TableRestState();
         float lift=rest.UpdateSurface(.87f,.91f,.88f,true,.014f);
         if(!rest.Active || Mathf.Abs(lift-.0105f)>.00001f)throw new BuildFailedException("Rest entry failed.");
@@ -92,7 +129,7 @@ public static class QuestBodyAvatarSetup
         if(report.summary.result!=BuildResult.Succeeded)throw new BuildFailedException("Body avatar build failed.");
         Debug.Log("[BodyAvatar] APK build succeeded.");
     }
-    public static void BuildAndPreview(){Build();Preview();QuestMirrorSetup.RenderControlPreview();}
+    public static void BuildAndPreview(){Build();Preview();PilotPreview.Render();}
     public static void Preview()
     {
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -138,6 +175,13 @@ public static class QuestBodyAvatarSetup
             var arm=new GameObject("Preview arm").AddComponent<ContinuousArmSurface>();arm.Initialize(skin,(side==0?left:right).WristSeamPoints,(side==0?left:right).WristSeamNormals);
             arm.Apply(shoulder,elbow,wristPose.position,wristPose.rotation);
             arm.ResolveSmallTableOverlap(tableParameters);
+            if(!arm.TryTopForearm(0,out var strokeStart)||!arm.TryTopForearm(1,out var strokeEnd)||strokeEnd.z<=strokeStart.z)
+                throw new BuildFailedException("Touch path must run elbow toward wrist on both arms.");
+            arm.transform.SetPositionAndRotation(new Vector3(2,0,-3),Quaternion.Euler(0,63,0));
+            if(!arm.TryTopForearm(.5f,out var moved)||!float.IsFinite(moved.x))throw new BuildFailedException("Touch path lost transformed arm.");
+            arm.gameObject.SetActive(false);
+            if(arm.TryTopForearm(.5f,out _))throw new BuildFailedException("Hidden arm exposed a touch path.");
+            arm.gameObject.SetActive(true);arm.transform.SetPositionAndRotation(Vector3.zero,Quaternion.identity);
             if(arm.MinimumClearance(tableParameters)<-.001f)throw new BuildFailedException("Synthetic resting arm intersects table.");
         }
         var table=GameObject.CreatePrimitive(PrimitiveType.Cube);table.transform.position=new Vector3(0,.86f,.505f);table.transform.localScale=new Vector3(1.1f,.04f,.65f);

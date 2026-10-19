@@ -12,6 +12,7 @@ namespace QuestResearch.Embodiment
         Vector3[] vertices, normals, seamPoints, seamNormals;
         Vector3 seamCentre;
         Mesh mesh;
+        int[] triangles;
         public void Initialize(Material material, Vector3[] wristPoints, Vector3[] wristNormals)
         {
             seamPoints=wristPoints;seamNormals=wristNormals;Sides=seamPoints.Length;
@@ -20,7 +21,7 @@ namespace QuestResearch.Embodiment
             seamCentre/=Sides;
             mesh = new Mesh { name = "Procedural continuous arm" };
             mesh.MarkDynamic();
-            var triangles = new int[(Rings - 1) * Sides * 6];
+            triangles = new int[(Rings - 1) * Sides * 6];
             int n = 0;
             for (int r = 0; r < Rings - 1; r++)
                 for (int s = 0; s < Sides; s++)
@@ -83,21 +84,50 @@ namespace QuestResearch.Embodiment
             }
             mesh.vertices = vertices; mesh.normals = normals; mesh.RecalculateBounds();
         }
+        // Sample the upper surface of the CURRENT rendered forearm, not a world-space path.
+        // Ring 12 is the elbow bend; ring 24 joins the wrist skin. Slight endpoint insets
+        // avoid the elbow crease and wrist seam. Palm-down resting pose is required.
+        public bool TryTopForearm(float progress,out Vector3 world)
+        {
+            world=Vector3.zero;if(vertices==null||!gameObject.activeInHierarchy)return false;
+            float ring=Mathf.Lerp(12.5f,23.5f,Mathf.Clamp01(progress));
+            int a=Mathf.FloorToInt(ring),b=a+1;
+            Vector3 up=transform.InverseTransformDirection(Vector3.up);
+            Vector3 Top(int row)
+            {
+                int best=row*Sides;
+                for(int j=1;j<Sides;j++)if(Vector3.Dot(vertices[row*Sides+j],up)>Vector3.Dot(vertices[best],up))best=row*Sides+j;
+                return vertices[best];
+            }
+            world=transform.TransformPoint(Vector3.Lerp(Top(a),Top(b),ring-a));
+            return float.IsFinite(world.x)&&float.IsFinite(world.y)&&float.IsFinite(world.z);
+        }
+        // Conservative triangle-footprint constraint, applied every rendered frame, not only during rest.
+        // Clamping every vertex of an overlapping triangle also protects the triangle interior at table edges.
         public float ResolveSmallTableOverlap(SeatedParameters table)
         {
-            float maximum=0;
-            // Only active resting support calls this. Elbow support handles the main fit;
-            // finish the underside smoothly, without the old per-vertex 4cm on/off cutoff.
-            for(int i=0;i<vertices.Length-Sides;i++)
+            float maximum=EnforceTableTop(vertices,triangles,table);
+            if(maximum>0){mesh.vertices=vertices;mesh.RecalculateNormals();mesh.RecalculateBounds();}
+            return maximum;
+        }
+        public static bool OverlapsTable(Vector3 a,Vector3 b,Vector3 c,SeatedParameters table)
+        {
+            return Mathf.Max(a.x,Mathf.Max(b.x,c.x))>=-table.tableWidth*.5f && Mathf.Min(a.x,Mathf.Min(b.x,c.x))<=table.tableWidth*.5f
+                && Mathf.Max(a.z,Mathf.Max(b.z,c.z))>=table.tableNearEdge && Mathf.Min(a.z,Mathf.Min(b.z,c.z))<=table.tableNearEdge+table.tableDepth;
+        }
+        public static float EnforceTableTop(Vector3[] points,int[] indices,SeatedParameters table)
+        {
+            float maximum=0,top=table.tableHeight+.001f;
+            for(int t=0;t<indices.Length;t+=3)
             {
-                var p=vertices[i];float lift=Mathf.Clamp(table.tableHeight+.0005f-p.y,0,.025f);
-                if(TableContactMath.Inside(p,table)&&lift>0)
+                int a=indices[t],b=indices[t+1],c=indices[t+2];
+                if(!OverlapsTable(points[a],points[b],points[c],table))continue;
+                for(int k=0;k<3;k++)
                 {
-                    vertices[i].y+=lift;maximum=Mathf.Max(maximum,lift);
-                    normals[i]=Vector3.Slerp(normals[i],Vector3.down,Mathf.Clamp01(lift/.005f));
+                    int i=indices[t+k];float lift=Mathf.Max(0,top-points[i].y);
+                    points[i].y+=lift;maximum=Mathf.Max(maximum,lift);
                 }
             }
-            if(maximum>0){mesh.vertices=vertices;mesh.normals=normals;mesh.RecalculateBounds();}
             return maximum;
         }
         public float MinimumClearance(SeatedParameters table)

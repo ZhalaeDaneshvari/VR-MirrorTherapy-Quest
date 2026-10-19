@@ -525,6 +525,7 @@ GameObject:
   - component: {fileID: 1382505040}
   - component: {fileID: 1382505042}
   - component: {fileID: 1382505041}
+  - component: {fileID: 1382505043}
   m_Layer: 0
   m_Name: XR Origin
   m_TagString: Untagged
@@ -664,7 +665,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1382505030}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7917a2d30473649d584f7f2bfb23b1a3, type: 3}
   m_Name:
@@ -702,6 +703,25 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 900970b28be20438382bae4fc0e828b0, type: 3}
   m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::QuestResearch.BodyCalibration.BodyTrackingProbe
+--- !u!114 &1382505043
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1382505030}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8a8718bee930e494f98f59023a18a7b2, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::QuestResearch.Embodiment.PilotWalkthrough
+  setup: {fileID: 1382505038}
+  hands: {fileID: 1382505036}
+  body: {fileID: 1382505042}
+  head: {fileID: 530699730}
+  idleMaterial: {fileID: 2100000, guid: 5073fad4fc8244216aff067b77891261, type: 2}
+  hoverMaterial: {fileID: 2100000, guid: dbc315531253a46b9a35e6494da9edfb, type: 2}
+  font: {fileID: 10102, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1 &1958011033
 GameObject:
   m_ObjectHideFlags: 0

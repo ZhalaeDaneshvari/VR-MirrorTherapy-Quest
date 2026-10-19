@@ -36,6 +36,8 @@ namespace QuestResearch.Embodiment
         public SeatedParameters Parameters=>parameters;
         public Transform BodyFrame { get; private set; }
         public bool Aligned { get; private set; }
+        public bool SurfacePreview {get;set;}=true;
+        public bool ShowFitMarkers {get;set;}
         public float SeatedHeadHeight { get; private set; }
         public bool HeadTracked { get; private set; }
         public string SurfaceFitWarning { get; set; } = "";
@@ -129,16 +131,60 @@ namespace QuestResearch.Embodiment
         }
         public void AdjustTableHeight(float metres)
         {
+            SurfacePreview=true;
             parameters.tableHeight=Mathf.Clamp(parameters.tableHeight+metres,.45f,1.1f);
             parameters.tableAlignmentConfirmed=false;
             Debug.Log($"[Seated] Table height adjusted to {parameters.tableHeight:F3} m; still uncalibrated.");
             Changed?.Invoke();Save();
         }
-        public void Align()
+        public void BeginParticipantSetup()
+        {
+            Aligned=false;SurfacePreview=false;ShowFitMarkers=false;parameters.tableAlignmentConfirmed=false;
+            parameters.movementCondition=MovementCondition.Normal;parameters.showSourceHand=true;
+            Message="New wearer: alignment and table confirmation required";
+            Changed?.Invoke();Save();
+        }
+        public void ConfirmTable()
+        {
+            if(!Aligned || !HeadTracked)return;
+            parameters.tableAlignmentConfirmed=true;Message="Table placement confirmed by wearer/helper";
+            Changed?.Invoke();Save();
+        }
+        public void AdjustTableDistance(float metres)
+        {
+            parameters.tableNearEdge=Mathf.Clamp(parameters.tableNearEdge+metres,.05f,.65f);
+            parameters.tableAlignmentConfirmed=false;Changed?.Invoke();Save();
+        }
+        public void AdjustArmFullness(float amount)
+        {parameters.armFullness=Mathf.Clamp(parameters.armFullness+amount,.8f,1.8f);Changed?.Invoke();Save();}
+        // Floor is required because table heights are measured from the physical floor.
+        // Re-request it after resume/recenter; never substitute a device-relative origin.
+        public bool PrepareFloorOrigin()
         {
             inputs.Clear();SubsystemManager.GetSubsystems(inputs);
-            if(!HeadTracked||!inputs.Exists(x=>x.running&&x.GetTrackingOriginMode()==TrackingOriginModeFlags.Floor))
-            {Message="Alignment rejected: valid head tracking and Floor origin required";Debug.LogWarning("[Seated] "+Message);return;}
+            foreach(var input in inputs)
+            {
+                if(!input.running)continue;
+                var mode=input.GetTrackingOriginMode();
+                if(mode==TrackingOriginModeFlags.Floor)return true;
+                var supported=input.GetSupportedTrackingOriginModes();
+                bool accepted=(supported & TrackingOriginModeFlags.Floor)!=0 && input.TrySetTrackingOriginMode(TrackingOriginModeFlags.Floor);
+                Debug.Log($"[Seated] Floor request: previous={mode} supported={supported} accepted={accepted} current={input.GetTrackingOriginMode()}");
+                if(input.GetTrackingOriginMode()==TrackingOriginModeFlags.Floor)return true;
+            }
+            return false;
+        }
+        public void Align()
+        {
+            Aligned=false;parameters.tableAlignmentConfirmed=false;
+            inputs.Clear();SubsystemManager.GetSubsystems(inputs);
+            var floorInput=inputs.Find(x=>x.running&&x.GetTrackingOriginMode()==TrackingOriginModeFlags.Floor);
+            if(!HeadTracked || floorInput==null)
+            {
+                Message=!HeadTracked ? "Head tracking lost. Look around, then retry." : "Floor tracking unavailable. Set floor level in Quest\nBoundary settings, return here and retry alignment.";
+                foreach(var input in inputs)Debug.LogWarning($"[Seated] Alignment origin: running={input.running} mode={input.GetTrackingOriginMode()} supported={input.GetSupportedTrackingOriginModes()} headTracked={HeadTracked}");
+                Debug.LogWarning("[Seated] "+Message);Changed?.Invoke();return;
+            }
             Vector3 head=trackingSpace.InverseTransformPoint(headCamera.position);
             Vector3 forward=Vector3.ProjectOnPlane(trackingSpace.InverseTransformDirection(headCamera.forward),Vector3.up);
             if(forward.sqrMagnitude<.1f||head.y<.65f||head.y>1.65f)
@@ -147,7 +193,7 @@ namespace QuestResearch.Embodiment
             BodyFrame.localPosition=new Vector3(head.x,0,head.z);
             BodyFrame.localRotation=Quaternion.LookRotation(forward.normalized,Vector3.up);
             if(alignedInput!=null)alignedInput.trackingOriginUpdated-=OriginChanged;
-            alignedInput=inputs.Find(x=>x.running);
+            alignedInput=floorInput;
             if(alignedInput!=null)alignedInput.trackingOriginUpdated+=OriginChanged;
             SeatedHeadHeight=head.y;Aligned=true;
             Message="Body aligned / movement condition shown above";

@@ -53,12 +53,13 @@ namespace QuestResearch.Embodiment
             normal+=weight*skinMatrices[bone].MultiplyVector(direction);
         }
         public float HighestOverTable {get;private set;}=float.NegativeInfinity;
+        public float LowestWholeHand {get;private set;}
         Mesh contactMesh;
         readonly List<Vector3> contactVertices=new List<Vector3>();
         // Query actual deformed skin, including fingertips, rather than joint centres.
-        public float LowestOverTable(Transform body,SeatedParameters table)
+        public float LowestOverTable(Transform body,SeatedParameters table,float padding=0)
         {
-            HighestOverTable=float.NegativeInfinity;
+            HighestOverTable=float.NegativeInfinity;LowestWholeHand=float.PositiveInfinity;
             if(!Visible)return float.PositiveInfinity;
             if(contactMesh==null)contactMesh=new Mesh{name="Reusable hand contact query"};
             float lowest=float.PositiveInfinity;
@@ -69,7 +70,8 @@ namespace QuestResearch.Embodiment
                 foreach(var vertex in contactVertices)
                 {
                     var p=toBody.MultiplyPoint3x4(vertex);
-                    if(TableContactMath.Inside(p,table)){lowest=Mathf.Min(lowest,p.y);HighestOverTable=Mathf.Max(HighestOverTable,p.y);}
+                    LowestWholeHand=Mathf.Min(LowestWholeHand,p.y);
+                    if(Mathf.Abs(p.x)<=table.tableWidth*.5f+padding && p.z>=table.tableNearEdge-padding && p.z<=table.tableNearEdge+table.tableDepth+padding){lowest=Mathf.Min(lowest,p.y);HighestOverTable=Mathf.Max(HighestOverTable,p.y);}
                 }
             }
             return lowest;
