@@ -1,3 +1,5 @@
+> Version 0.12.0 adds participant selection and recording before appearance selection. See [MOVEMENT_DATA.md](MOVEMENT_DATA.md). The underlying guided experience below remains the same.
+
 # Guided mirror-therapy demonstration — 0.11.0
 
 Branch: `codex/guided-mirror-pilot`. Unity **6000.6.2f1**, Android/Quest 3.

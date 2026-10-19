@@ -1,6 +1,8 @@
 # Quest mirror-therapy research prototype
 
-Current guided demo: **0.11.0**, branch **codex/guided-mirror-pilot**. App: **Quest Body Driven Avatar**.
+Current guided demo: **0.12.0**, branch **codex/participant-movement-recording**. App: **Quest Body Driven Avatar**.
+
+**Participant recording:** select P01–P20 before the demo. Head, hand, estimated arm and displayed/mapped movement are recorded on the headset and copied over USB to **Desktop → Research Movement Data Demo**. Eye tracking is unavailable on Quest 3. See [movement data instructions](MOVEMENT_DATA.md) and [recording verification](MOVEMENT_DATA_VERIFICATION.md).
 
 **Start with [the guided demo instructions](GUIDED_DEMO.md)** and [verification status](GUIDED_DEMO_VERIFICATION.md).
 

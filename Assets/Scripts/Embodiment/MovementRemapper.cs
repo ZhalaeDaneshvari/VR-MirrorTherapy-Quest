@@ -18,6 +18,7 @@ namespace QuestResearch.Embodiment
         public bool Reflected { get; internal set; }
         public void CopyFrom(TrackingHandFrame input)
         {
+            InputSequence=input.Sequence;
             Array.Copy(input.JointPoses, Joints, Joints.Length);
             Array.Copy(input.JointValid, Valid, Valid.Length);
             InputSequence = input.Sequence;
@@ -85,6 +86,7 @@ namespace QuestResearch.Embodiment
         [SerializeField] Transform trackingSpace;
         public DisplayedHandPose Left { get; } = new DisplayedHandPose();
         public DisplayedHandPose Right { get; } = new DisplayedHandPose();
+        public Transform TrackingSpace=>trackingSpace;
         public event Action Changed;
         public void Configure(HandTrackingSource input) { source = input; }
         public void ConfigureFrame(SeatedSetup alignment, Transform space) { setup = alignment; trackingSpace = space; }

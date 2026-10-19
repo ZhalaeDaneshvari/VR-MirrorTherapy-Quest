@@ -11,6 +11,7 @@ namespace QuestResearch.Embodiment
         [SerializeField] Transform trackingSpace;
         public bool HasFit {get;private set;}
         readonly float[] upperLength=new float[2],lowerLength=new float[2];
+        public Vector2 FittedLengths(int side)=>HasFit?new Vector2(upperLength[side],lowerLength[side]):Vector2.zero;
         public void ClearFit(){HasFit=false;}
         public bool CaptureFit()
         {

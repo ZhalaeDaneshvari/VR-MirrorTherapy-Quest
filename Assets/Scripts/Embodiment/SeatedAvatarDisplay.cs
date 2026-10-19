@@ -11,6 +11,13 @@ namespace QuestResearch.Embodiment
         [SerializeField] BodyArmTargets bodyTargets;
         public void ConfigureBodyTargets(BodyArmTargets targets){bodyTargets=targets;}
         int lastRenderedFrame=-1;
+        public event System.Action FrameDisplayed;
+        readonly DisplayedHandPose[] lastDisplayed=new DisplayedHandPose[2];
+        public DisplayedHandPose DisplayedLeft=>lastDisplayed[0];
+        public DisplayedHandPose DisplayedRight=>lastDisplayed[1];
+        public readonly bool[] ArmVisible=new bool[2];
+        public readonly Vector3[] FittedArmPoints=new Vector3[6];
+        public bool HandVisible(int side)=>ready&&handRoots[side].gameObject.activeInHierarchy&&handMeshes[side]!=null&&handMeshes[side].Visible;
         public double RenderMilliseconds {get;private set;}
         // XR Hands 1.9 updates at default BeforeRender order. Consume the latest mapped poses once afterward.
         [BeforeRenderOrder(10000)]
@@ -20,6 +27,7 @@ namespace QuestResearch.Embodiment
             lastRenderedFrame=Time.frameCount;
             long start=System.Diagnostics.Stopwatch.GetTimestamp();
             Refresh();
+            if(ready)FrameDisplayed?.Invoke();
             RenderMilliseconds=(System.Diagnostics.Stopwatch.GetTimestamp()-start)*1000.0/System.Diagnostics.Stopwatch.Frequency;
         }
         [SerializeField] SeatedSetup setup;
@@ -229,6 +237,7 @@ namespace QuestResearch.Embodiment
                     handMeshes[side].Apply(displayed,trackingSpace,setup.HeadTracked);
                 }
             }
+            lastDisplayed[side]=displayed;
             DrawArm(side,displayed,bodyVisible);
         }
         void DrawPrimitiveHand(int side, DisplayedHandPose hand)
@@ -292,6 +301,7 @@ namespace QuestResearch.Embodiment
                 }
                 if(reachable)
                 {
+                    FittedArmPoints[side*3]=shoulder;FittedArmPoints[side*3+1]=elbow;FittedArmPoints[side*3+2]=wrist;
                     for(int j=0;j<3;j++)
                     {
                         var marker=fitMarkers[side*3+j];marker.gameObject.SetActive(setup.ShowFitMarkers);
@@ -313,6 +323,7 @@ namespace QuestResearch.Embodiment
                 if(reachable!=previousReach[side])Debug.Log($"[Seated] {(side==0?"Left":"Right")} arm reachable={reachable}; hand remains at tracked position. Adjust estimated body dimensions if needed.");
                 previousReach[side]=reachable;
             }
+            ArmVisible[side]=reachable;
             if (armSurfaces[side] != null) armSurfaces[side].gameObject.SetActive(reachable);
             else { upper[side].gameObject.SetActive(reachable);forearm[side].gameObject.SetActive(reachable); }
         }
