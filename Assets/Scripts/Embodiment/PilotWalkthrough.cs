@@ -3,6 +3,7 @@ using System.IO;
 using UnityEngine;
 using UnityEngine.XR.OpenXR;
 using QuestResearch.Hands;
+using QuestResearch.Recording;
 using QuestResearch.BodyCalibration;
 
 namespace QuestResearch.Embodiment
@@ -11,7 +12,7 @@ namespace QuestResearch.Embodiment
     // Head-directed dwell interaction stays independent of manipulated hand poses.
     public sealed class PilotWalkthrough : MonoBehaviour
     {
-        public enum Page { Welcome, SkinTone, Calibration, Table, Fit, Ready, Settings, Running, Aligning, HeightEntry, SurfaceCapture, SurfaceTools, Comfort, MirrorIntro, FutureTouch, Finished }
+        public enum Page { Welcome, Participant, RecordingError, SkinTone, Calibration, Table, Fit, Ready, Settings, Running, Aligning, HeightEntry, SurfaceCapture, SurfaceTools, Comfort, MirrorIntro, FutureTouch, Finished }
         [SerializeField] SeatedSetup setup;
         [SerializeField] HandTrackingSource hands;
         [SerializeField] BodyTrackingProbe body;
@@ -21,6 +22,8 @@ namespace QuestResearch.Embodiment
         Transform panel,card; Mesh roundedMesh;
         RestingSurfaceCalibration surfaceCapture;
         BodyArmTargets fittedArms;
+        MovementRecorder recorder;int participantNumber=1,participantPage;TextMesh recordingLabel;
+        public string SkinToneName=>DemoSkinPalette.Names[skinTone];
         TextMesh stageLabel; Transform gazeDot; Material dotMaterial;
         readonly GuidedDemoActivity activity=new GuidedDemoActivity();
         int skinTone=2,lastPrompt=-1; bool mirrorActivity;
@@ -51,6 +54,8 @@ namespace QuestResearch.Embodiment
         {setup=s;hands=h;body=b;head=camera;idleMaterial=idle;hoverMaterial=hover;font=f;}
         void Start()
         {
+            recorder=gameObject.AddComponent<MovementRecorder>();
+            recorder.Configure(hands,body,setup,GetComponent<MovementRemapper>(),GetComponent<SeatedAvatarDisplay>(),head,this);
             BuildUI();
             if(setup!=null)setup.BeginParticipantSetup();
             try
@@ -82,6 +87,7 @@ namespace QuestResearch.Embodiment
             for(int i=0;i<buttons.Length;i++)
             {buttons[i]=Button("Pilot action "+i,centres[i],sizes[i],card);renderers[i]=buttons[i].GetComponent<Renderer>();texts[i]=Label("",centres[i]-Vector3.forward*.008f,.0038f,card);}
             stageLabel=Label("MIRROR THERAPY  /  GUIDED DEMO",new Vector3(0,.375f,-.008f),.0028f,card);
+            recordingLabel=Label("",new Vector3(0,-.407f,-.008f),.0027f,card);
             stageLabel.color=new Color(.35f,.86f,.83f);
             for(int i=0;i<5;i++)swatches[i]=new Material(overlay){color=DemoSkinPalette.Colours[i],renderQueue=4010};
             gazeDot=Button("Head gaze cursor",Vector3.zero,new Vector2(.007f,.007f),panel);
@@ -134,7 +140,8 @@ namespace QuestResearch.Embodiment
             instructions.transform.localPosition=new Vector3(0,compact?.145f:.13f,-.008f);
             status.transform.localPosition=new Vector3(0,compact?-.055f:-.365f,-.008f);
             stageLabel.gameObject.SetActive(!compact);
-            Layout(next==Page.HeightEntry);
+            recordingLabel.transform.localPosition=new Vector3(0,compact?-.085f:-.407f,-.008f);
+            Layout(next==Page.HeightEntry||next==Page.Participant);
             RefreshText();
         }
         void Layout(bool keypad)
@@ -191,7 +198,7 @@ namespace QuestResearch.Embodiment
             if(!Application.isFocused || !setup.HeadTracked || !OpenXRUtility.IsUserPresent)
             {
                 surfaceCapture.Cancel();panel.gameObject.SetActive(false);placed=false;stableSince=-1;
-                if(wasFocused){Record("tracking_or_focus_lost");page=Page.Welcome;alignAt=-1;wasFocused=false;}
+                if(wasFocused){Record("tracking_or_focus_lost");recorder?.End("tracking_or_focus_lost");page=Page.Welcome;alignAt=-1;wasFocused=false;}
                 return;
             }
             if(!wasFocused){wasFocused=true;if(fittedArms!=null)fittedArms.ClearFit();setup.BeginParticipantSetup();Show(Page.Welcome);}
@@ -222,6 +229,7 @@ namespace QuestResearch.Embodiment
             else outsideSince=-1;
             if(!placed)Place();panel.gameObject.SetActive(true);
             if(RequiresAlignment(page) && !setup.Aligned){notice=setup.Message;Show(Page.Calibration);}
+            if(recorder!=null&&recorder.Error.Length>0&&page!=Page.RecordingError&&page!=Page.Welcome&&page!=Page.Participant)Show(Page.RecordingError);
             UpdateActivity();
             if(Time.realtimeSinceStartupAsDouble>=nextText){nextText=Time.realtimeSinceStartupAsDouble+.2;RefreshText();}
             var origin=panel.InverseTransformPoint(head.position);var direction=panel.InverseTransformDirection(head.forward);
@@ -248,6 +256,8 @@ namespace QuestResearch.Embodiment
             if(heading==null)return;
             for(int i=0;i<16;i++)Set(i,"");
             float height=setup==null?.74f:setup.Parameters.tableHeight;
+            recordingLabel.text=recorder==null?"":recorder.Status;
+            recordingLabel.color=recorder!=null&&recorder.Error.Length>0?new Color(1,.55f,.35f):new Color(.4f,.85f,.8f);
             stageLabel.text=StageCaption(page);
             for(int n=0;n<16;n++)renderers[n].sharedMaterial=page==Page.SkinTone&&n<5?swatches[n]:uiIdle;
             status.text="Aim the centre dot at a button. Hold still for 2 seconds.";
@@ -257,6 +267,16 @@ namespace QuestResearch.Embodiment
                     heading.text="Welcome";
                     instructions.text="A seated experience of virtual arms and hands.\nChoose your appearance, fit your table, then explore\nhow your movements appear on the opposite side.\nMove only as much as feels comfortable.";
                     Set(5,"Let's begin");break;
+                case Page.Participant:
+                    heading.text="Choose participant number";
+                    instructions.text="Selected: P"+participantNumber.ToString("D2")+"\nEach run is saved as a separate session.\nChoose a number, then Confirm.";
+                    for(int n=0;n<10;n++){int number=participantPage*10+n+1;Set(n,"P"+number.ToString("D2")+(number==participantNumber?"\nSelected":""));}
+                    Set(12,"P01 - P10",participantPage>0);Set(13,"P11 - P20",participantPage==0);
+                    Set(14,"Confirm",recorder==null||!recorder.Saving);Set(15,"Back");break;
+                case Page.RecordingError:
+                    heading.text="Recording needs attention";
+                    instructions.text="Recording has stopped. Earlier files are retained.\nPlease tell the researcher before continuing.\n"+"Check headset storage and the recording logs.\nStart a new session after resolving the problem.";
+                    Set(5,"Return to start");break;
                 case Page.SkinTone:
                     heading.text="Make these hands yours";
                     instructions.text="Choose a skin tone for both hands and arms.\nLook down to preview your selection.\nSelected: "+DemoSkinPalette.Names[skinTone];
@@ -323,7 +343,14 @@ namespace QuestResearch.Embodiment
         {
             switch(page)
             {
-                case Page.Welcome: if(i==5)Show(Page.SkinTone);break;
+                case Page.Welcome: if(i==5)Show(Page.Participant);break;
+                case Page.Participant:
+                    if(i<10)participantNumber=participantPage*10+i+1;
+                    if(i==12)participantPage=0;if(i==13)participantPage=1;
+                    if(i==14){if(recorder.Begin("P"+participantNumber.ToString("D2")))Show(Page.SkinTone);else Show(Page.RecordingError);}
+                    if(i==15)Show(Page.Welcome);break;
+                case Page.RecordingError:
+                    if(i==5){recorder.End("recording_error");Show(Page.Welcome);}break;
                 case Page.SkinTone:
                     if(i<5){skinTone=i;GetComponent<SeatedAvatarDisplay>()?.SetSkinTone(DemoSkinPalette.Colours[i]);Record("skin_tone_selected");}
                     if(i==5)Show(Page.Calibration);break;
@@ -387,7 +414,7 @@ namespace QuestResearch.Embodiment
         {
             switch(p)
             {
-                case Page.Welcome:return "01 / 07   WELCOME";
+                case Page.Welcome:case Page.Participant:return "01 / 07   WELCOME";
                 case Page.SkinTone:return "02 / 07   YOUR APPEARANCE";
                 case Page.Ready:case Page.Comfort:return "04 / 07   FAMILIARISATION";
                 case Page.MirrorIntro:return "05 / 07   MIRROR EXPERIENCE";
@@ -397,7 +424,7 @@ namespace QuestResearch.Embodiment
                 default:return "03 / 07   PERSONAL FIT";
             }
         }
-        static bool RequiresAlignment(Page p)=>p!=Page.Welcome&&p!=Page.SkinTone&&p!=Page.Calibration&&p!=Page.Finished;
+        static bool RequiresAlignment(Page p)=>p!=Page.Welcome&&p!=Page.Participant&&p!=Page.RecordingError&&p!=Page.SkinTone&&p!=Page.Calibration&&p!=Page.Finished;
         void StartActivity(bool mirrored)
         {
             mirrorActivity=mirrored;activity.Begin(mirrored);lastPrompt=-1;
@@ -412,20 +439,21 @@ namespace QuestResearch.Embodiment
             if(activity.PromptIndex!=lastPrompt){lastPrompt=activity.PromptIndex;Record("activity_prompt");}
             if(activity.Complete){Record("activity_complete");Show(mirrorActivity?Page.FutureTouch:Page.Comfort);}
         }
-        void Finish(){setup.SetMovement(MovementCondition.Normal,true);Record("demo_finished");Show(Page.Finished);}
+        void Finish(){setup.SetMovement(MovementCondition.Normal,true);Record("demo_finished");Show(Page.Finished);recorder?.End("finished");}
         [Serializable] sealed class PilotEvent
         {
-            public string kind,utc,version,affectedSide,movement,stage,skinTone;public double monotonicSeconds;public float activitySeconds;public int promptIndex;
+            public string kind,utc,version,affectedSide,movement,stage,skinTone,participant,session;public double monotonicSeconds;public float activitySeconds;public int promptIndex;
             public float tableHeight,tableNearEdge,standingHeight;public bool tableConfirmed,tableRest;
         }
         void Record(string kind)
         {
+            recorder?.Event(kind);
             if(setup==null)return;
             var p=setup.Parameters;
-            try{events?.WriteLine(JsonUtility.ToJson(new PilotEvent{kind=kind,stage=page.ToString(),skinTone=DemoSkinPalette.Names[skinTone],activitySeconds=activity.Elapsed,promptIndex=activity.PromptIndex,utc=DateTime.UtcNow.ToString("O"),version=Application.version,affectedSide="Not collected in guided demo",movement=p.movementCondition.ToString(),monotonicSeconds=Time.realtimeSinceStartupAsDouble,tableHeight=p.tableHeight,tableNearEdge=p.tableNearEdge,standingHeight=0,tableConfirmed=p.tableAlignmentConfirmed,tableRest=p.tableContactEnabled}));}
+            try{events?.WriteLine(JsonUtility.ToJson(new PilotEvent{kind=kind,participant=recorder==null?"":recorder.Participant,session=recorder==null?"":recorder.Session,stage=page.ToString(),skinTone=DemoSkinPalette.Names[skinTone],activitySeconds=activity.Elapsed,promptIndex=activity.PromptIndex,utc=DateTime.UtcNow.ToString("O"),version=Application.version,affectedSide="Not collected in guided demo",movement=p.movementCondition.ToString(),monotonicSeconds=Time.realtimeSinceStartupAsDouble,tableHeight=p.tableHeight,tableNearEdge=p.tableNearEdge,standingHeight=0,tableConfirmed=p.tableAlignmentConfirmed,tableRest=p.tableContactEnabled}));}
             catch(Exception ex) when(ex is IOException||ex is UnauthorizedAccessException){notice="Demo event log failed";Debug.LogWarning("[Pilot] "+ex.Message);events=null;}
         }
-        void OnApplicationPause(bool paused){if(paused){Record("app_paused");alignAt=-1;page=Page.Welcome;placed=false;wasFocused=false;if(panel!=null)panel.gameObject.SetActive(false);}}
+        void OnApplicationPause(bool paused){if(paused){Record("app_paused");recorder?.End("app_paused");alignAt=-1;page=Page.Welcome;placed=false;wasFocused=false;if(panel!=null)panel.gameObject.SetActive(false);}}
         void RefreshFontTexture(Font updated){if(updated==font&&uiText!=null)uiText.mainTexture=font.material.mainTexture;}
         void OnDestroy(){if(roundedMesh!=null)Destroy(roundedMesh);foreach(var m in swatches)if(m!=null)Destroy(m);if(dotMaterial!=null)Destroy(dotMaterial);Font.textureRebuilt-=RefreshFontTexture;Record("app_stop");events?.Dispose();if(panel!=null)Destroy(panel.gameObject);if(cardMaterial!=null)Destroy(cardMaterial);if(uiIdle!=null)Destroy(uiIdle);if(uiHover!=null)Destroy(uiHover);if(uiText!=null)Destroy(uiText);}
     }
