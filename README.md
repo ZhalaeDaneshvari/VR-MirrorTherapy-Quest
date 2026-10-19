@@ -1,32 +1,25 @@
 # Quest mirror-therapy research prototype
 
-Current branch: **codex/milestone-4-movement-mirroring**. Current app: **Quest Movement Mirror**.
+Current guided demo: **0.11.0**, branch **codex/guided-mirror-pilot**. App: **Quest Body Driven Avatar**.
 
-Seated controller-free prototype with an adjustable table, anatomical hand meshes, estimated arms, normal movement, left-to-right reflection, and right-to-left reflection. Each mirrored condition can show both hands or only the opposite hand.
+**Start with [the guided demo instructions](GUIDED_DEMO.md)** and [verification status](GUIDED_DEMO_VERIFICATION.md).
 
-**Headset acceptance is pending for Milestone 4.** Earlier table visibility was confirmed, but precise real/virtual table alignment remains unverified. Automatic clinician-hand/contact sensing is required future work and is not implemented.
+Welcome → five skin tones → seated/table calibration → normal familiarisation → automatic bilateral mirror movement → future-touch information → finish. Large head-gaze buttons use a visible two-second selection ring. Pinch selection and the previous manual-touch interaction are absent from this flow. Clinician glove integration is deferred.
 
-## Start here
+Open with Unity **6000.6.2f1**, Android support installed. Use **Quest Prototype → Body Avatar → Configure**, then **Build**. The environment/UI are created at runtime in `Assets/Scenes/QuestBodyDrivenAvatar.unity`. Build output is `Builds/QuestBodyDrivenAvatar.apk`.
 
-1. Open `VR-MirrorTherapy-Quest-Hands` with Unity **6000.6.2f1**, Android support installed.
-2. After package resolution, choose **Quest Prototype → Milestone 4 → Configure Movement Mirror**. This also reconstructs the ignored hand model assets from the pinned Unity XR Hands package.
-3. Choose **Validate Movement Mirror**, then **Build Movement Mirror APK**.
-4. Launch **Quest Movement Mirror** on Quest. Sit facing a real table and request explicit alignment before testing.
+The legacy project remains untouched. Hardware acceptance of this new guided flow is pending; earlier wearer feedback does not establish validation of this release. Body/table calibration is estimation and requires visual confirmation.
 
-Read [MILESTONE4.md](MILESTONE4.md) for exact controls, reflection math, limitations and headset tests. [Verification](MILESTONE4_VERIFICATION.md) separates build/editor evidence from pending wearer checks. [Asset provenance](THIRD_PARTY_ASSETS.md) explains how fresh clones reconstruct the Unity hand meshes. No extra XR packages or legacy Oculus Integration were added.
+## Earlier implementation references
 
-The researcher command defaults to M4:
-
-    python3 Tools/seated_setup.py --align
-    python3 Tools/seated_setup.py --condition left-to-right --source-hand hide
-    python3 Tools/seated_setup.py --condition normal
-
-Only send alignment while the wearer is seated and looking forward. The app does not listen for voice commands. Version 0.4.1 also has a gaze-and-pinch **REALIGN (3 sec)** button and **Table ±2 cm** controls in the headset. The table cannot provide physical support.
-
-## Earlier checkpoints
 
 - [M1 head tracking](MILESTONE1.md), [headset observations](MILESTONE1_HARDWARE_TEST.md)
 - [M2 hand-tracking guide](MILESTONE2.md), [verification](MILESTONE2_VERIFICATION.md)
 - [M3 seated embodiment](MILESTONE3.md), [verification](MILESTONE3_VERIFICATION.md)
 
-The legacy project remains untouched. Previous apps have separate identifiers and remain available. Switch to the corresponding Git branch for a previous milestone's configuration; the current project configuration builds M4. APKs and regenerable build caches are excluded from Git.
+
+- [Body avatar](BODY_AVATAR.md), [body calibration](BODY_CALIBRATION.md)
+- [Milestone 4 movement mapping](MILESTONE4.md)
+- [Previous manual touch experiment](MANUAL_TOUCH_DEMO.md) — inactive in the guided release
+
+Saved basic-pilot tags and historical branches remain available. Older guides describe their respective versions; use the guided instructions for the current app. APKs, caches, and local platform credentials are not committed.

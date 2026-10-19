@@ -1,3 +1,5 @@
+> **Historical implementation:** inactive in guided release 0.11.0. See [GUIDED_DEMO.md](GUIDED_DEMO.md). The guided app creates no manual-touch component or command listener.
+
 # Manual forearm-stroke demonstration — 0.10.1
 
 This adds a timed visual stimulus to the saved basic mirror-therapy pilot. It does not detect clinician hands, physical contact, pressure, or actual stroke timing. No new XR packages or controller mode are enabled. Existing movement conditions and per-wearer calibration remain in place.
