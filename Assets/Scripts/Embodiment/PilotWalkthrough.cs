@@ -330,7 +330,7 @@ namespace QuestResearch.Embodiment
                     Set(5,"Finish");break;
                 case Page.Finished:
                     heading.text="Thank you for participating";
-                    instructions.text="The demo is complete.\nYou can now take off the headset.\n\nThis was a research demonstration.";
+                    instructions.text="The demo is complete.\nPlease remove your headset.\n\nYour researcher will now conduct a brief\ninterview about your experience.";
                     Set(5,"New participant");break;
                 case Page.Settings:
                     heading.text="Take your time";
