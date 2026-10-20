@@ -10,7 +10,7 @@ fi
 echo "Wake and wear the Quest; connect USB and allow USB debugging."
 echo "This window shows the actual headset display. Close it to stop viewing."
 echo "No video/audio is recorded. Participant controls remain in the headset."
-"$SCRCPY" --select-usb --no-control --no-audio --crop=2064:2208:0:0 --max-size=1600 --max-fps=30 --window-title="Quest Researcher Live View" "$@"
+"$SCRCPY" --select-usb --no-control --no-audio --crop=2064:2208:0:0 --max-size=1200 --hwdec=disabled --render-driver=software --window-x=100 --window-y=80 --window-width=700 --window-height=749 --max-fps=30 --window-title="Quest Researcher Live View" "$@"
 result=$?
 if (( result != 0 )); then
   echo "Check that exactly one headset is connected, awake and USB-authorized."
