@@ -14,6 +14,9 @@ namespace QuestResearch.Embodiment
         SeatedSetup setup;HandTrackingSource hands;SeatedAvatarDisplay avatar;BodyArmTargets arms;
         double begin,stableStart,lastSample;
         Vector3 anchorLeft,anchorRight;
+        bool UseLeft=>setup.Parameters.UsesSide(0);
+        bool UseRight=>setup.Parameters.UsesSide(1);
+        string Palms=>UseLeft&&UseRight?"both palms":UseLeft?"your left palm":"your right palm";
         public bool Active {get;private set;}
         public string Message {get;private set;}="";
         public bool Succeeded {get;private set;}
@@ -23,7 +26,7 @@ namespace QuestResearch.Embodiment
         {
             Succeeded=false;Active=true;begin=Time.realtimeSinceStartupAsDouble;ResetWindow();
             setup.SurfacePreview=false;setup.SetMovement(MovementCondition.Normal,true);
-            Message="Rest both palms flat on the real table.\nKeep fingers relaxed and visible. Hold still.";
+            Message="Rest "+Palms+" flat on the real table.\nKeep fingers relaxed and visible. Hold still.";
         }
         public void Cancel(){Active=false;ResetWindow();}
         void ResetWindow(){samples.Clear();stableStart=-1;lastSample=-1;}
@@ -32,21 +35,22 @@ namespace QuestResearch.Embodiment
             if(!Active)return;
             double now=Time.realtimeSinceStartupAsDouble;
             if(!setup.Aligned||!setup.HeadTracked){Finish(false,"Tracking changed. Align again before fitting the table.");return;}
-            if(now-begin>20){Finish(false,"Could not get steady, flat hands.\nRest both palms on the table and try again,\nor enter a measured height.");return;}
+            if(now-begin>20){Finish(false,"Could not get steady hand tracking.\nRest "+Palms+" on the table and try again,\nor enter a measured height.");return;}
             if(now-begin<4)return; // Allow time to lower hands after selecting the button.
             if(now-lastSample<.05)return;
             lastSample=now;
             var left=hands.Left;var right=hands.Right;
             int wrist=XRHandJointID.Wrist.ToIndex();
-            if(left.Availability!=HandAvailability.Available||right.Availability!=HandAvailability.Available||now-left.ReceivedAt>.15||now-right.ReceivedAt>.15||!Flat(left)||!Flat(right))
-            {ResetWindow();Message="Keep both palms down and visible.\nWaiting for stable hand tracking...";return;}
+            if((UseLeft&&!Ready(left,now))||(UseRight&&!Ready(right,now)))
+            {ResetWindow();Message="Keep "+Palms+" down and visible.\nWaiting for stable hand tracking...";return;}
             Vector3 l=left.JointPoses[wrist].position,r=right.JointPoses[wrist].position;
-            if(stableStart<0 || Vector3.Distance(anchorLeft,l)>.012f || Vector3.Distance(anchorRight,r)>.012f)
+            if(stableStart<0 || (UseLeft&&Vector3.Distance(anchorLeft,l)>.012f) || (UseRight&&Vector3.Distance(anchorRight,r)>.012f))
             {ResetWindow();stableStart=now;anchorLeft=l;anchorRight=r;}
-            if(!avatar.TryRestingHeight(left,0,out float lh)||!avatar.TryRestingHeight(right,1,out float rh)||Mathf.Abs(lh-rh)>.025f)
-            {ResetWindow();Message="Place both hands on the same level surface.";return;}
-            samples.Add((lh+rh)*.5f);
-            Message="Hold both hands still: "+Mathf.CeilToInt(Mathf.Max(0,2-(float)(now-stableStart)))+" sec\nTable hidden while sampling your resting hands.";
+            float lh=0,rh=0;
+            if((UseLeft&&!avatar.TryRestingHeight(left,0,out lh))||(UseRight&&!avatar.TryRestingHeight(right,1,out rh))||(UseLeft&&UseRight&&Mathf.Abs(lh-rh)>.025f))
+            {ResetWindow();Message="Rest "+Palms+" flat on the table.";return;}
+            samples.Add(UseLeft&&UseRight?(lh+rh)*.5f:UseLeft?lh:rh);
+            Message="Hold "+Palms+" still: "+Mathf.CeilToInt(Mathf.Max(0,2-(float)(now-stableStart)))+" sec\nTable hidden while sampling your resting hand(s).";
             if(now-stableStart<2||samples.Count<30)return;
             if(!TryEstimate(samples,out float height))
             {ResetWindow();Message="Surface estimate unstable or outside 45-110 cm.\nUse measured height if needed.";return;}
@@ -55,8 +59,10 @@ namespace QuestResearch.Embodiment
             Debug.Log($"[SurfaceCalibration] height={height:F3} samples={samples.Count} bodyFit={fitted}; instructed rest estimate, manual confirmation required");
             Finish(true,"Estimated surface: "+(height*100).ToString("F1")+" cm.\nCheck fit; use +/- 1 cm if needed.\n"+(fitted?"Arm lengths estimated; verify joint markers.":"Body fit not ready; retry capture before starting."));
         }
+        static bool Ready(TrackingHandFrame hand,double now)=>hand.Availability==HandAvailability.Available && now-hand.ReceivedAt<=.15 && Flat(hand);
         static bool Flat(TrackingHandFrame hand)
         {
+            foreach(var joint in new[]{XRHandJointID.Wrist,XRHandJointID.MiddleProximal,XRHandJointID.IndexProximal,XRHandJointID.LittleProximal})if(!hand.JointValid[joint.ToIndex()])return false;
             var p=hand.JointPoses;
             Vector3 along=p[XRHandJointID.MiddleProximal.ToIndex()].position-p[XRHandJointID.Wrist.ToIndex()].position;
             Vector3 across=p[XRHandJointID.IndexProximal.ToIndex()].position-p[XRHandJointID.LittleProximal.ToIndex()].position;

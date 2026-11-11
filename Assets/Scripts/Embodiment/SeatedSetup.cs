@@ -6,6 +6,8 @@ using UnityEngine.XR;
 
 namespace QuestResearch.Embodiment
 {
+    public enum ParticipantHands { Both, LeftOnly, RightOnly }
+
     [Serializable]
     public sealed class SeatedParameters
     {
@@ -16,11 +18,13 @@ namespace QuestResearch.Embodiment
         public bool tableContactEnabled=true;
         public MovementCondition movementCondition = MovementCondition.Normal;
         public bool showSourceHand = true;
+        public ParticipantHands participantHands = ParticipantHands.Both;
+        public bool UsesSide(int side)=>participantHands==ParticipantHands.Both || (side==0?participantHands==ParticipantHands.LeftOnly:participantHands==ParticipantHands.RightOnly);
         public bool tableAlignmentConfirmed=false;
         public bool requestAlignment=false;
         public bool Valid()
         {
-            return Between(armFullness,.8f,1.8f) && Enum.IsDefined(typeof(MovementCondition), movementCondition) && Between(tableHeight,.45f,1.1f)&&Between(tableWidth,.6f,2f)&&Between(tableDepth,.35f,1.2f)
+            return Enum.IsDefined(typeof(ParticipantHands),participantHands) && Between(armFullness,.8f,1.8f) && Enum.IsDefined(typeof(MovementCondition), movementCondition) && Between(tableHeight,.45f,1.1f)&&Between(tableWidth,.6f,2f)&&Between(tableDepth,.35f,1.2f)
                 &&Between(tableNearEdge,.05f,.65f)&&Between(shoulderWidth,.25f,.6f)&&Between(shoulderDrop,.12f,.4f)
                 &&Between(upperArmLength,.18f,.45f)&&Between(forearmLength,.18f,.4f);
         }
@@ -122,6 +126,12 @@ namespace QuestResearch.Embodiment
         }
         public void SetTableContact(bool enabled)
         {parameters.tableContactEnabled=enabled;Changed?.Invoke();Save();Debug.Log("[TableRest] Visual assist="+enabled);}
+        public void SetParticipantHands(ParticipantHands value)
+        {
+            if(!Enum.IsDefined(typeof(ParticipantHands),value))throw new ArgumentOutOfRangeException(nameof(value));
+            parameters.participantHands=value;parameters.tableAlignmentConfirmed=false;
+            Changed?.Invoke();Save();
+        }
         public void SetMovement(MovementCondition condition,bool showSource)
         {
             if(!Enum.IsDefined(typeof(MovementCondition),condition))throw new ArgumentOutOfRangeException(nameof(condition));
@@ -140,6 +150,7 @@ namespace QuestResearch.Embodiment
         public void BeginParticipantSetup()
         {
             Aligned=false;SurfacePreview=false;ShowFitMarkers=false;parameters.tableAlignmentConfirmed=false;
+            parameters.participantHands=ParticipantHands.Both;
             parameters.movementCondition=MovementCondition.Normal;parameters.showSourceHand=true;
             Message="New wearer: alignment and table confirmation required";
             Changed?.Invoke();Save();

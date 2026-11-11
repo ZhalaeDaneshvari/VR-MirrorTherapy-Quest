@@ -638,6 +638,7 @@ MonoBehaviour:
     tableContactEnabled: 1
     movementCondition: 0
     showSourceHand: 1
+    participantHands: 0
     tableAlignmentConfirmed: 0
     requestAlignment: 0
 --- !u!114 &1382505039

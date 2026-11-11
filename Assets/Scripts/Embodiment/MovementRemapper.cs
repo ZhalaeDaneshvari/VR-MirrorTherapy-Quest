@@ -107,6 +107,13 @@ namespace QuestResearch.Embodiment
             MovementReflection.Map(source.Left, source.Right, Left, Right,
                 setup == null ? MovementCondition.Normal : setup.Parameters.movementCondition,
                 setup == null || setup.Parameters.showSourceHand, aligned, frame);
+            // Only explicitly selected physical sources may produce displayed limbs.
+            // Never infer a one-hand profile from transient tracking loss.
+            if(setup!=null)
+            {
+                if(!setup.Parameters.UsesSide(Left.SourceHand==PhysicalHand.Left?0:1))Left.Invalidate();
+                if(!setup.Parameters.UsesSide(Right.SourceHand==PhysicalHand.Left?0:1))Right.Invalidate();
+            }
             Changed?.Invoke();
         }
         void OnDisable()
