@@ -88,3 +88,21 @@ are obtained; nothing above is a claim that the clinician display is accurate.
   driver and with the `oculus` driver disabled, so no headset driver can end the session, then repeat the check.
   This is community-documented, not HTC-documented, and Quest Link through SteamVR is unavailable until the
   settings are restored.
+
+### 2026-11-11: headless SteamVR and first on-headset attempts
+
+- **Off-Link solved for this test:** SteamVR runs with its `null` headset driver and the `oculus` driver
+  disabled (settings backed up outside the repo, restore script provided). The tracker then stays available
+  while the Quest runs the standalone test app; the app connected over USB with frames 0–9 ms old and
+  0.5–1 ms round trip, no dropped frames.
+- Keyboard control was impractical for one person wearing the headset; the probe now also reads commands
+  from a file and confirmation waits for the wearer's hand, so the session can be driven remotely.
+- Calibration attempts on the wearer's right hand: (1) rejected, hand moved 2.1 cm and turned 15°;
+  (2) rejected, hand spread 6.5 cm (gate then 8 cm, now 5 cm) although the fit was 0.7 cm RMS with a 6.2 cm
+  mount offset, and the tracker lost tracking 8 s in; (3) aborted by repeated Quest tracking-origin changes.
+- **Current blocker: tracking reliability in the room, not the software.** Over 22 min of PC log the tracker
+  was `Running_OK` only 43 % of the time, with 8 losses lasting 28–161 s each. On the headset, the Quest
+  logged `BoundaryNotFound → RelocalizingGracePeriod`, ground-plane errors and repeated tracking-origin
+  changes (18 in 2 min), which invalidate any alignment, as the pilot itself also does. Both devices use
+  inside-out cameras; lighting, visual features and the boundary/map setup for this room are the next things
+  to fix. No clinician hand has been displayed or judged yet.
