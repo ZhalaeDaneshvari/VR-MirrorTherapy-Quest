@@ -69,3 +69,22 @@ for the prototype, not acceptance criteria.
 
 Implemented and compiled: see the commit history on this branch. Hardware results are recorded below as they
 are obtained; nothing above is a claim that the clinician display is accurate.
+
+### 2026-11-11: build, install, first off-Link check
+
+- Unity 6000.6.2f1 on the lab PC: imports, compiles, math self-checks pass (synthetic calibration recovered
+  yaw 37.0°, 0.3 cm RMS), test APK builds and installs beside the pilot; the pilot package (0.13.1) is untouched.
+- Fresh-checkout finding (pilot, pre-existing): the checked-in pilot scene references the hand-prefab object
+  IDs of the machine that first generated them; regenerated prefabs keep their GUIDs but get new IDs, so a
+  pilot built from a fresh checkout would show no participant hands. The test scene copy is re-pointed at the
+  local prefabs; the pilot scene is not modified here.
+- **Blocker observed: SteamVR does not stay up once the Quest leaves Link.** With the default SteamVR setup
+  (Quest via the `oculus` driver as the HMD), leaving Link left SteamVR running at first, with the tracker
+  `Running_OK`. About two minutes later the `oculus` driver sent `VREvent_DriverRequestedQuit` (21:00:52 UTC)
+  and SteamVR shut down, before the standalone app was launched (21:03:08 UTC). VIVE Hub's tracker service
+  kept running, but SteamVR is the only interface to the tracker pose, so the stream stopped. The probe exited
+  cleanly with reason `steamvr-quit`.
+- Proposed next step (not yet done; changes SteamVR settings): run SteamVR without a headset using its `null`
+  driver and with the `oculus` driver disabled, so no headset driver can end the session, then repeat the check.
+  This is community-documented, not HTC-documented, and Quest Link through SteamVR is unavailable until the
+  settings are restored.
