@@ -176,11 +176,16 @@ namespace QuestResearch.Embodiment
         }
         void Place()
         {
-            var forward=Vector3.ProjectOnPlane(head.forward,Vector3.up).normalized;
+            bool aligned=setup!=null&&setup.Aligned;
+            // Page transitions must not recapture the wearer's current gaze: dwelling on a
+            // right-hand button would move the next page right, accumulating apparent drift.
+            // After alignment, all pages share the fixed participant midline and seated height.
+            Vector3 anchor=aligned?setup.BodyFrame.position+Vector3.up*setup.SeatedHeadHeight:head.position;
+            var forward=Vector3.ProjectOnPlane(aligned?setup.BodyFrame.forward:head.forward,Vector3.up).normalized;
             if(forward.sqrMagnitude<.5f)return;
             // Keep the entire panel above the hand workspace rather than in front of the lap.
-            Vector3 position=head.position+forward*1.4f+Vector3.up*.18f;
-            if(setup!=null&&setup.Aligned)position.y=Mathf.Max(position.y,setup.BodyFrame.position.y+setup.Parameters.tableHeight+.68f);
+            Vector3 position=anchor+forward*1.4f+Vector3.up*.18f;
+            if(aligned)position.y=Mathf.Max(position.y,setup.BodyFrame.position.y+setup.Parameters.tableHeight+.68f);
             panel.SetPositionAndRotation(position,Quaternion.LookRotation(forward,Vector3.up));placed=true;
         }
         bool HandsReady=>hands!=null && hands.Left.Availability==HandAvailability.Available && hands.Right.Availability==HandAvailability.Available;
