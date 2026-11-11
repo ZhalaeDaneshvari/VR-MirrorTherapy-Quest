@@ -44,7 +44,8 @@ namespace QuestResearch.Clinician
         readonly DisplayedHandPose shown=new DisplayedHandPose(),hidden=new DisplayedHandPose();
         Transform sleeve,marker;TextMesh label;readonly List<UnityEngine.Object> owned=new List<UnityEngine.Object>();
         readonly List<ClinicianCalibrationSolver.Sample> samples=new List<ClinicianCalibrationSolver.Sample>();
-        double calibrationStart,lastObserved=double.NegativeInfinity,nextStatus;bool markerOn;
+        [SerializeField] float calibrationStartTimeout=45;
+        double calibrationStart,firstSampleAt=-1,lastObserved=double.NegativeInfinity,nextStatus;bool markerOn;
         long lastCalibrationTicks;Vector3 lastCalibrationPosition;
         MovementSessionWriter writer;string sessionFolder;
         readonly List<XRInputSubsystem> inputs=new List<XRInputSubsystem>();bool originHooked;
@@ -123,7 +124,7 @@ namespace QuestResearch.Clinician
         void Reply(string message){link.Send("L,"+message);Record("researcher_message",message);}
         void BeginCalibration()
         {
-            samples.Clear();calibrationStart=Now;lastCalibrationTicks=0;Alignment=ClinicianAlignmentState.Calibrating;
+            samples.Clear();calibrationStart=Now;firstSampleAt=-1;lastCalibrationTicks=0;Alignment=ClinicianAlignmentState.Calibrating;
             alignmentNote="Calibrating: tracker strapped on your "+link.ClinicianHand+" hand as the clinician will wear it. Move it slowly; turn and tilt.";
             Reply(alignmentNote);
         }
@@ -257,8 +258,12 @@ namespace QuestResearch.Clinician
         }
         void Calibrate(bool ok,ClinicianTrackerFrame frame,double now)
         {
-            double remaining=calibrationSeconds-(now-calibrationStart);
-            alignmentNote=F("Calibrating {0:0} s: move your {1} hand (tracker strapped on) slowly; turn and tilt it. {2} samples",Math.Max(0,remaining),link.ClinicianHand,samples.Count);
+            // The window starts at the first usable sample, so one person can press C and then put the headset on.
+            if(firstSampleAt<0&&now-calibrationStart>calibrationStartTimeout){FinishCalibration();return;}
+            double remaining=firstSampleAt<0?calibrationSeconds:calibrationSeconds-(now-firstSampleAt);
+            alignmentNote=firstSampleAt<0
+                ?F("Calibration: put the headset on and hold your {0} hand (tracker strapped on) in view ({1:0} s left to start).",link.ClinicianHand,calibrationStartTimeout-(now-calibrationStart))
+                :F("Calibrating {0:0} s: move your {1} hand (tracker strapped on) slowly; turn and tilt it. {2} samples",Math.Max(0,remaining),link.ClinicianHand,samples.Count);
             if(remaining<=0){FinishCalibration();return;}
             if(!ok)return;
             var h=ClinicianSide==0?hands.Left:hands.Right;int w=XRHandJointID.Wrist.ToIndex();
@@ -271,6 +276,7 @@ namespace QuestResearch.Clinician
             }
             if(frame.ReceivedTicks==lastCalibrationTicks)return;
             lastCalibrationTicks=frame.ReceivedTicks;lastCalibrationPosition=frame.Position;
+            if(firstSampleAt<0)firstSampleAt=now;
             samples.Add(new ClinicianCalibrationSolver.Sample{trackerPosition=frame.Position,trackerRotation=frame.Rotation,wristPosition=h.JointPoses[w].position,wristRotation=h.JointPoses[w].rotation});
         }
         void PlaceSleeve()
