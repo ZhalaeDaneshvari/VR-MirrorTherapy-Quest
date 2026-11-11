@@ -34,15 +34,20 @@ public static class ClinicianTrackerSetup
         var scene=EditorSceneManager.OpenScene(ScenePath);
         var origin=Object.FindAnyObjectByType<XROrigin>();
         if(origin==null)throw new BuildFailedException("Pilot scene has no XR Origin.");
+        var left=AssetDatabase.LoadAssetAtPath<RemappedHandMesh>(Generated+"/LeftDisplayedHand.prefab");
+        var right=AssetDatabase.LoadAssetAtPath<RemappedHandMesh>(Generated+"/RightDisplayedHand.prefab");
+        var display=origin.GetComponent<SeatedAvatarDisplay>();
+        foreach(var c in new Object[]{left,right,display,origin.GetComponent<SeatedSetup>(),origin.GetComponent<HandTrackingSource>()})
+            if(c==null)throw new BuildFailedException("Pilot scene or generated hands are missing something the clinician test needs.");
+        // The checked-in pilot scene holds the hand-prefab object IDs of the machine that first generated them;
+        // regenerated prefabs keep their GUIDs but get new IDs. Re-point the copy (never the pilot scene) at the
+        // local prefabs, as QuestMirrorSetup does for its own scene, so participant hands render in the test app.
+        display.ConfigureMeshes(left,right);
         var item=new GameObject("Clinician tracker (test feature, off by default)");item.transform.SetParent(origin.transform,false);
         var link=item.AddComponent<ClinicianTrackerLink>();
         var feature=item.AddComponent<ClinicianTrackerFeature>();
-        feature.Configure(link,origin.GetComponent<SeatedSetup>(),origin.GetComponent<HandTrackingSource>(),origin.GetComponent<SeatedAvatarDisplay>(),
-            origin.CameraFloorOffsetObject.transform,origin.Camera.transform,
-            AssetDatabase.LoadAssetAtPath<RemappedHandMesh>(Generated+"/LeftDisplayedHand.prefab"),AssetDatabase.LoadAssetAtPath<RemappedHandMesh>(Generated+"/RightDisplayedHand.prefab"),
-            AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/SeatedSkin.mat"));
-        foreach(var c in new Object[]{feature,origin.GetComponent<SeatedSetup>(),origin.GetComponent<HandTrackingSource>(),origin.GetComponent<SeatedAvatarDisplay>()})
-            if(c==null)throw new BuildFailedException("Pilot scene is missing a component the clinician feature needs.");
+        feature.Configure(link,origin.GetComponent<SeatedSetup>(),origin.GetComponent<HandTrackingSource>(),display,
+            origin.CameraFloorOffsetObject.transform,origin.Camera.transform,left,right,AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/SeatedSkin.mat"));
         EditorSceneManager.SaveScene(scene);
         Debug.Log("[Clinician] Test scene regenerated from the pilot scene: "+ScenePath);
     }

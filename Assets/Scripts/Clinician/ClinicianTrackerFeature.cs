@@ -172,7 +172,7 @@ namespace QuestResearch.Clinician
         // ---------- per-frame pipeline ----------
         bool Current(out ClinicianTrackerFrame frame,out double age)
         {
-            age=double.PositiveInfinity;
+            age=double.PositiveInfinity;frame=default;
             if(!link.Connected||!link.TryLatest(out frame))return false;
             age=ClinicianTrackerLink.Seconds(Stopwatch.GetTimestamp()-frame.ReceivedTicks);
             return age<=staleSeconds&&frame.Running;
