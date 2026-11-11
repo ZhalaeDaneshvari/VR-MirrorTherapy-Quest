@@ -51,12 +51,43 @@ stream  sends the pose to the Quest clinician test app over USB (adb reverse) an
             using var server=new StreamServer(port,header,clock);
             var inbox=new System.Collections.Concurrent.ConcurrentQueue<string>();server.Received+=inbox.Enqueue;
             Console.WriteLine("Listening on 127.0.0.1:"+port+". Start the clinician test app on the Quest. Keys: C V K 0 1 2 X A Q.");
-            double lastPrint=0,lastKeys=0;bool keys=!Console.IsInputRedirected;
+            double lastPrint=0,lastKeys=0,lastFile=0;bool keys=!Console.IsInputRedirected;
             double seconds=double.Parse(options.GetValueOrDefault("seconds","0"),CultureInfo.InvariantCulture);
+            // Commands can also be appended as lines to a file (one per line, e.g. "calibrate"), so a helper
+            // or another program can drive the session while the researcher wears the headset.
+            string commandFile=System.IO.Path.GetFullPath(options.GetValueOrDefault("commands","stream-commands.txt"));
+            long commandOffset=System.IO.File.Exists(commandFile)?new System.IO.FileInfo(commandFile).Length:0;
+            Console.WriteLine("Command file: "+commandFile+" (append lines: "+string.Join(", ",new HashSet<string>(Keys.Values))+").");
+            void Send(long now,string command,string source)
+            {
+                if(!server.ClientConnected){Console.WriteLine();Console.WriteLine("Quest app not connected; '"+command+"' not sent.");return;}
+                server.Command(command);log.Event(now,"command",new{command,source});Console.WriteLine();Console.WriteLine("-> "+command+" ("+source+")");
+            }
             session.Run(seconds,s=>
             {
                 long now=clock.ElapsedTicks;double t=now/(double)Stopwatch.Frequency;
                 server.Frame(s,now);
+                if(t-lastFile>=0.1)
+                {
+                    lastFile=t;
+                    try
+                    {
+                        long length=System.IO.File.Exists(commandFile)?new System.IO.FileInfo(commandFile).Length:0;
+                        if(length<commandOffset)commandOffset=0;// file replaced
+                        if(length>commandOffset)
+                        {
+                            using var stream=new System.IO.FileStream(commandFile,System.IO.FileMode.Open,System.IO.FileAccess.Read,System.IO.FileShare.ReadWrite|System.IO.FileShare.Delete);
+                            stream.Seek(commandOffset,System.IO.SeekOrigin.Begin);string text=new System.IO.StreamReader(stream).ReadToEnd();commandOffset=length;
+                            foreach(var raw in text.Split('\n'))
+                            {
+                                string c=raw.Trim().ToLowerInvariant();if(c.Length==0)continue;
+                                if(new HashSet<string>(Keys.Values).Contains(c))Send(now,c,"file");
+                                else{Console.WriteLine();Console.WriteLine("Ignored unknown command in file: "+c);}
+                            }
+                        }
+                    }
+                    catch(System.IO.IOException){}
+                }
                 while(inbox.TryDequeue(out var line))
                 {
                     if(line.StartsWith("S,"))continue;// latest status is shown on the status line
@@ -70,9 +101,7 @@ stream  sends the pose to the Quest clinician test app over USB (adb reverse) an
                         var key=Console.ReadKey(true).Key;
                         if(key is ConsoleKey.Q or ConsoleKey.Escape)return false;
                         if(key==ConsoleKey.A){string r=StreamServer.Reverse(adb,port);log.Event(now,"adbReverse",new{port,result=r});Console.WriteLine();Console.WriteLine(r);continue;}
-                        if(!Keys.TryGetValue(key,out var command))continue;
-                        if(!server.ClientConnected){Console.WriteLine();Console.WriteLine("Quest app not connected; '"+command+"' not sent.");continue;}
-                        server.Command(command);log.Event(now,"command",new{command});Console.WriteLine();Console.WriteLine("-> "+command);
+                        if(Keys.TryGetValue(key,out var command))Send(now,command,"key");
                     }
                 }
                 if(t-lastPrint>=0.25)

@@ -139,13 +139,26 @@ namespace QuestResearch.Clinician
             else{Alignment=calibration!=null?ClinicianAlignmentState.Unverified:ClinicianAlignmentState.None;alignmentNote=message;RecordCalibration("calibration_rejected",message);}
             Reply(alignmentNote);
         }
+        // Confirmation is requested by the researcher and completes only once the offset to the wearer's own hand
+        // has been measurable for a full second, so the command can be sent before the headset is put on.
+        const double VerifyWindow=30,VerifySettle=1;
+        double verifyRequestedAt=-1,evidenceSince=-1;
         void Verify()
         {
             if(Alignment!=ClinicianAlignmentState.Unverified||calibration==null){Reply("Nothing to confirm: "+alignmentNote);return;}
-            if(!Current(out var frame,out _)){Reply("Cannot confirm: tracker not tracking or stream stale.");return;}
-            var evidence=Evidence(frame);
-            if(evidence==null){Reply("Cannot confirm: touch the tracker with an index fingertip, or wear it on your calibrated hand, so the offset can be measured.");return;}
-            Alignment=ClinicianAlignmentState.Verified;lastObserved=Now;alignmentNote="Alignment confirmed: "+evidence;
+            verifyRequestedAt=Now;evidenceSince=-1;
+            Reply("Confirming alignment: hold your "+link.ClinicianHand+" hand (tracker on it) in view, or touch the tracker with an index fingertip ("+VerifyWindow+" s).");
+        }
+        void UpdateVerify(bool ok,ClinicianTrackerFrame frame,double now)
+        {
+            if(verifyRequestedAt<0)return;
+            if(Alignment!=ClinicianAlignmentState.Unverified||calibration==null){verifyRequestedAt=-1;return;}
+            if(now-verifyRequestedAt>VerifyWindow){verifyRequestedAt=-1;Reply("Alignment not confirmed: no hand or fingertip near the tracker was measurable. Send verify again.");return;}
+            string evidence=ok?Evidence(frame):null;
+            if(evidence==null){evidenceSince=-1;return;}
+            if(evidenceSince<0){evidenceSince=now;return;}
+            if(now-evidenceSince<VerifySettle)return;
+            verifyRequestedAt=-1;Alignment=ClinicianAlignmentState.Verified;lastObserved=now;alignmentNote="Alignment confirmed: "+evidence;
             RecordCalibration("alignment_confirmed",evidence);Reply(alignmentNote);
         }
         // Measured offsets between the calibrated tracker and the wearer's own tracked hand (both Quest space).
@@ -211,6 +224,7 @@ namespace QuestResearch.Clinician
                 lastObserved=now;
             }
             if(Alignment==ClinicianAlignmentState.Calibrating)Calibrate(ok,frame,now);
+            UpdateVerify(ok,frame,now);
             Pose? tracker=null,wrist=null;
             if(ok&&calibration!=null&&Alignment!=ClinicianAlignmentState.Invalid&&Alignment!=ClinicianAlignmentState.Calibrating)
             {var raw=new Pose(frame.Position,frame.Rotation);tracker=calibration.TrackerInSpace(raw);wrist=calibration.WristInSpace(raw);}
