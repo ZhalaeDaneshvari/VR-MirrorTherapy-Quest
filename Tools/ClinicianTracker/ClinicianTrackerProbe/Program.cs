@@ -23,11 +23,12 @@ namespace QuestResearch.ClinicianTracker
 
   ClinicianTrackerProbe list
   ClinicianTrackerProbe live [--serial S] [--seconds N] [--hz 250] [--out logs]
-  ClinicianTrackerProbe test [--serial S] [--hz 250] [--out logs]
+  ClinicianTrackerProbe test [--serial S] [--hz 250] [--out logs] [--slide-cm 30] [--lift-cm 20] [--turn-deg 90]
 
 list  shows every SteamVR device and its identity.
 live  prints the clinician tracker pose and logs it until Ctrl+C (or --seconds).
-test  guided ~1 minute movement test (hardware test 1); writes summary.json.";
+test  guided ~1 minute movement test (hardware test 1); writes summary.json. Pass the
+      distances/angle you will actually measure out so the report can compare them.";
         static int Main(string[] args)
         {
             if(args.Length==0||args[0] is "-h" or "--help"){Console.WriteLine(Usage);return 0;}
@@ -36,6 +37,8 @@ test  guided ~1 minute movement test (hardware test 1); writes summary.json.";
             string serial=options.GetValueOrDefault("serial");string outDir=options.GetValueOrDefault("out","logs");
             double hz=double.Parse(options.GetValueOrDefault("hz","250"),CultureInfo.InvariantCulture);
             double seconds=double.Parse(options.GetValueOrDefault("seconds","0"),CultureInfo.InvariantCulture);
+            double Positive(string key,string fallback){double v=double.Parse(options.GetValueOrDefault(key,fallback),CultureInfo.InvariantCulture);if(v<=0)throw new ArgumentException("--"+key+" must be > 0");return v;}
+            double slideCm=Positive("slide-cm","30"),liftCm=Positive("lift-cm","20"),turnDeg=Positive("turn-deg","90");
             if(mode is not ("list" or "live" or "test")){Console.Error.WriteLine("Unknown mode: "+mode+"\n\n"+Usage);return 2;}
             var clock=Stopwatch.StartNew();OpenVrTracker vr;
             try{vr=OpenVrTracker.Open(clock);}catch(Exception e){Console.Error.WriteLine(e.Message);return 3;}
@@ -73,8 +76,10 @@ test  guided ~1 minute movement test (hardware test 1); writes summary.json.";
                 }
                 else
                 {
-                    var test=new MovementTest();
+                    var test=new MovementTest(slideCm,liftCm,turnDeg);
                     Console.WriteLine("Hardware test 1 takes about "+test.TotalSeconds+" s. Follow the prompts; a beep marks each step.");
+                    Console.WriteLine("Stated movement: slide "+slideCm+" cm, lift "+liftCm+" cm, turn "+turnDeg+" deg.");
+                    if(!Console.IsInputRedirected){Console.Write("Press Enter to start...");Console.ReadLine();}
                     session.Run(0,s=>test.OnTick(s,clock.Elapsed.TotalSeconds));
                     if(session.StopReason=="complete")
                     {

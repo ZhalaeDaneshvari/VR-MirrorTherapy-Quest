@@ -11,14 +11,24 @@ namespace QuestResearch.ClinicianTracker
         sealed class Phase{public string Key,Prompt;public double Seconds;public readonly List<TrackerSample> Samples=new List<TrackerSample>();public double Start;}
         sealed class Rest{public bool Found,Settled;public int Count;public double[] Position,Rotation;public double RmsMm,MaxMm;}
         const double RestWindow=2.0,SettledMetres=0.01;
-        readonly Phase[] phases={
-            new Phase{Key="prepare",Seconds=6,Prompt="Put the tracker flat on the table, cameras facing the room. Take your hands away."},
-            new Phase{Key="still",Seconds=6,Prompt="Hands off. Measuring resting noise."},
-            new Phase{Key="slide",Seconds=10,Prompt="Slide it about 30 cm sideways along the table. Let go and keep still."},
-            new Phase{Key="lift",Seconds=10,Prompt="Lift it about 20 cm straight up and hold it still in the air."},
-            new Phase{Key="turn",Seconds=12,Prompt="Put it back on the table and turn it about 90 degrees in place, like a dial. Let go."},
-            new Phase{Key="cover",Seconds=10,Prompt="Cover the tracker completely (cupped hands, a cloth or a box) and keep it covered."},
-            new Phase{Key="uncover",Seconds=10,Prompt="Uncover it and leave it still on the table."}};
+        // Gross scale band around the tester's stated (measured) movement; catches e.g. a 3x scale error,
+        // not an accuracy criterion.
+        const double MinRatio=0.5,MaxRatio=1.5;
+        readonly Phase[] phases;readonly double slideCm,liftCm,turnDeg;
+        public MovementTest(double slideCm,double liftCm,double turnDeg)
+        {
+            this.slideCm=slideCm;this.liftCm=liftCm;this.turnDeg=turnDeg;
+            phases=new[]{
+                new Phase{Key="prepare",Seconds=6,Prompt="Put the tracker flat on the table, cameras facing the room. Take your hands away."},
+                new Phase{Key="still",Seconds=6,Prompt="Hands off. Measuring resting noise."},
+                new Phase{Key="slide",Seconds=10,Prompt="Slide it exactly "+slideCm+" cm sideways along the table (use your marks). Let go and keep still."},
+                new Phase{Key="lift",Seconds=10,Prompt="Lift it "+liftCm+" cm straight up (use a ruler) and hold it still in the air."},
+                new Phase{Key="turn",Seconds=12,Prompt="Put it back on the table and turn it "+turnDeg+" degrees in place, like a dial. Let go."},
+                new Phase{Key="cover",Seconds=10,Prompt="Cover it with a box or cloth WITHOUT moving it, and keep it covered."},
+                new Phase{Key="uncover",Seconds=10,Prompt="Remove the cover without moving the tracker. Hands off."}};
+        }
+        static bool InBand(double measured,double stated)=>measured>=MinRatio*stated&&measured<=MaxRatio*stated;
+        static string Ratio(double measured,double stated)=>"ratio "+Math.Round(measured/stated,2)+" of stated";
         int current=-1;double start=double.NaN;double lastPrint;
         public double TotalSeconds=>phases.Sum(p=>p.Seconds);
         public bool OnTick(TrackerSample s,double now)
@@ -81,20 +91,22 @@ namespace QuestResearch.ClinicianTracker
             bool? Settled(params Rest[] r)=>r.All(x=>x.Found&&x.Settled)?true:(bool?)null;
             if(still.Found&&slide.Found)
             {
-                double h=PoseMath.Horizontal(slide.Position,still.Position),v=slide.Position[1]-still.Position[1];
-                Check("slide seen as horizontal movement",Settled(still,slide)==null?null:h>=0.10&&Math.Abs(v)<0.05,
-                    R(h*100)+" cm horizontal, "+R(v*100)+" cm vertical","~30 cm horizontal (>=10), |vertical| < 5 cm");
-            }else Check("slide seen as horizontal movement",null,"no settled valid rest pose","~30 cm horizontal");
+                double h=PoseMath.Horizontal(slide.Position,still.Position)*100,v=(slide.Position[1]-still.Position[1])*100;
+                Check("slide seen as horizontal movement",Settled(still,slide)==null?null:InBand(h,slideCm)&&Math.Abs(v)<5,
+                    R(h)+" cm horizontal ("+Ratio(h,slideCm)+"), "+R(v)+" cm vertical",slideCm+" cm horizontal within "+MinRatio+"-"+MaxRatio+"x, |vertical| < 5 cm");
+            }else Check("slide seen as horizontal movement",null,"no settled valid rest pose",slideCm+" cm horizontal");
             if(slide.Found&&lift.Found)
             {
-                double v=lift.Position[1]-slide.Position[1];
-                Check("lift seen as +Y (up)",Settled(slide,lift)==null?null:v>=0.08,R(v*100)+" cm vertical, "+R(PoseMath.Horizontal(lift.Position,slide.Position)*100)+" cm horizontal","~+20 cm (>=+8)");
-            }else Check("lift seen as +Y (up)",null,"no settled valid rest pose","~+20 cm");
+                double v=(lift.Position[1]-slide.Position[1])*100;
+                Check("lift seen as +Y (up)",Settled(slide,lift)==null?null:InBand(v,liftCm),
+                    R(v)+" cm vertical ("+Ratio(v,liftCm)+"), "+R(PoseMath.Horizontal(lift.Position,slide.Position)*100)+" cm horizontal","+"+liftCm+" cm within "+MinRatio+"-"+MaxRatio+"x");
+            }else Check("lift seen as +Y (up)",null,"no settled valid rest pose","+"+liftCm+" cm");
             if(slide.Found&&turn.Found)
             {
                 double a=PoseMath.AngleDegrees(slide.Rotation,turn.Rotation),tilt=PoseMath.AxisTiltFromVerticalDegrees(slide.Rotation,turn.Rotation);
-                Check("turn seen as rotation about vertical",Settled(slide,turn)==null?null:a>=45&&tilt<=30,R(a)+" deg, axis "+R(tilt)+" deg from vertical","~90 deg (>=45) about a near-vertical axis (<=30 deg)");
-            }else Check("turn seen as rotation about vertical",null,"no settled valid rest pose","~90 deg");
+                Check("turn seen as rotation about vertical",Settled(slide,turn)==null?null:InBand(a,turnDeg)&&tilt<=30,
+                    R(a)+" deg ("+Ratio(a,turnDeg)+"), axis "+R(tilt)+" deg from vertical",turnDeg+" deg within "+MinRatio+"-"+MaxRatio+"x about a near-vertical axis (<=30 deg)");
+            }else Check("turn seen as rotation about vertical",null,"no settled valid rest pose",turnDeg+" deg");
             var cover=P("cover");var results=cover.Samples.Select(s=>s.Result.ToString()+(s.Raw.Valid?"":"/invalid")).Distinct().ToList();
             var firstLoss=cover.Samples.FirstOrDefault(s=>!s.Raw.Valid||!s.Connected||s.Result!=ETrackingResult.Running_OK);
             double drift=turn.Found?cover.Samples.Where(s=>s.Raw.Valid).Select(s=>PoseMath.Distance(s.Raw.Position,turn.Position)).DefaultIfEmpty(0).Max():double.NaN;
@@ -109,7 +121,7 @@ namespace QuestResearch.ClinicianTracker
             var rates=phases.ToDictionary(p=>p.Key,Rate);var stillRate=Rate(P("still"));
             lines.Add("[INFO] still-phase timing: "+System.Text.Json.JsonSerializer.Serialize(stillRate,ProbeLog.Json));
             passed=all;
-            return new{schema=1,test="movement",passed,checks,
+            return new{schema=1,test="movement",passed,stated=new{slideCm,liftCm,turnDeg},checks,
                 covered=new{statuses=results,firstLossSeconds=firstLoss==null?(double?)null:firstLoss.HostSeconds-cover.Start,maxValidDriftMetres=double.IsNaN(drift)?(double?)null:drift},
                 uncovered=new{firstRunningOkSeconds=firstOk==null?(double?)null:Math.Max(0,firstOk.HostSeconds-un.Start),
                     restOffsetFromPreCoverMetres=uncover.Found&&turn.Found?PoseMath.Distance(uncover.Position,turn.Position):(double?)null},

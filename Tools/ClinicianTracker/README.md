@@ -48,16 +48,17 @@ observable here. Host receipt time is recorded; end-to-end latency must be measu
 
 ## Hardware test 1: real movement
 
-`test` gives timed prompts with a beep at each step: rest (noise), slide ~30 cm along the table, lift ~20 cm,
-turn ~90° in place, cover the tracker's cameras, uncover. It then reports:
+`test` waits for Enter, then gives timed prompts with a beep at each step: rest (noise), slide, lift,
+turn in place, cover the tracker without moving it, uncover. Pass the movement you will actually measure out
+(`--slide-cm`, `--lift-cm`, `--turn-deg`; defaults 30, 20, 90) so the report compares against it:
 
 | Check | Evidence | Plausibility expectation |
 |---|---|---|
 | identity | serial, model, tracking system | one generic tracker with a serial |
 | valid while resting | valid fraction, RMS/max noise | ≥ 99 % valid |
-| slide | horizontal and vertical displacement between rest poses | ≥ 10 cm horizontal, < 5 cm vertical |
-| lift | vertical displacement | ≥ +8 cm, i.e. +Y is up |
-| turn | rotation angle, axis tilt | ≥ 45° about a near-vertical axis |
+| slide | horizontal and vertical displacement between rest poses | 0.5–1.5× stated, < 5 cm vertical |
+| lift | vertical displacement | 0.5–1.5× stated upward, i.e. +Y is up |
+| turn | rotation angle, axis tilt | 0.5–1.5× stated, axis ≤ 30° from vertical |
 | recovers after uncovering | time to the first valid `Running_OK` sample | within the 10 s uncover step |
 | covered | statuses seen, time to loss, displacement while still valid | informational only |
 
@@ -90,9 +91,28 @@ or the clinician hand would jump to the frame origin. The tracker did **not** re
 uncovering and was still `Running_OutOfRange` minutes later at 2 % battery. Recovery was not a check
 in that run (it reported PASS); it is now, so a run like that one fails.
 
-Not yet verified: recovery after occlusion (with a charged tracker), whether the frame is the same after
-recovery, behaviour when the headset leaves Link, network streaming to the standalone Quest app,
-calibration accuracy, latency.
+### Hardware test 1, second run (battery 10 %, stated movement measured with marks/ruler)
+
+`test --slide-cm 15 --lift-cm 15 --turn-deg 90`: slide 11.6 cm (0.77 of stated) with 0.3 cm vertical;
+lift 14.0 cm (0.93); turn 93.2° (1.04) about an axis 0.6° from vertical; rest noise 0.21 mm RMS. The
+slide shortfall is not explained yet (tracker centre vs. marked edge, or scale); calibration against
+known points will measure scale directly.
+
+Covered without being moved (1.8 mm displacement while still valid), the tracker went
+`Running_OutOfRange`/invalid 3.6 s after the prompt and **did not recover within 10 s** (test result:
+NOT PASSED). Watched afterwards for 90 s, still on the desk and uncovered: poses reported
+`connected=false`, result 0 for 35 s, then the device deactivated/reactivated in SteamVR and stayed
+`Running_OutOfRange`/invalid to the end. In the first run it recovered at some point before the next
+check, cause unknown.
+
+**Open issue:** after a few seconds of full camera occlusion the tracker loses tracking and, lying flat on
+the table, has not relocalised on its own. Whether pointing its cameras at the mapped room restores it,
+and how long that takes, is the next check; it decides whether occlusion during clinician touch is
+recoverable in a session.
+
+Not yet verified: reliable recovery after occlusion, whether the frame is the same after recovery,
+behaviour when the headset leaves Link, network streaming to the standalone Quest app, calibration
+accuracy, latency.
 
 ## Documented constraints (checked 2026-11-11)
 
