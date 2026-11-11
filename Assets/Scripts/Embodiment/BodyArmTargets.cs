@@ -19,6 +19,7 @@ namespace QuestResearch.Embodiment
             if(Time.realtimeSinceStartupAsDouble-source.ReceivedAt>.25)return false;
             for(int i=0;i<2;i++)
             {
+                if(!setup.Parameters.UsesSide(i)){upperLength[i]=lowerLength[i]=0;continue;}
                 int o=i*4;
                 if(!source.Valid[o+1]||!source.Valid[o+2]||!source.Valid[o+3])return false;
                 upperLength[i]=Vector3.Distance(source.Poses[o+1].position,source.Poses[o+2].position);

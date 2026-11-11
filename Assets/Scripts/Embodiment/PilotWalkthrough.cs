@@ -12,7 +12,7 @@ namespace QuestResearch.Embodiment
     // Head-directed dwell interaction stays independent of manipulated hand poses.
     public sealed class PilotWalkthrough : MonoBehaviour
     {
-        public enum Page { Welcome, Participant, RecordingError, SkinTone, Calibration, Table, Fit, Ready, Settings, Running, Aligning, HeightEntry, SurfaceCapture, SurfaceTools, Comfort, MirrorIntro, FutureTouch, Finished }
+        public enum Page { Welcome, Participant, RecordingError, SkinTone, Calibration, Table, Fit, Ready, Settings, Running, Aligning, HeightEntry, SurfaceCapture, SurfaceTools, Comfort, MirrorIntro, FutureTouch, Finished, HandSetup }
         [SerializeField] SeatedSetup setup;
         [SerializeField] HandTrackingSource hands;
         [SerializeField] BodyTrackingProbe body;
@@ -176,15 +176,26 @@ namespace QuestResearch.Embodiment
         }
         void Place()
         {
-            var forward=Vector3.ProjectOnPlane(head.forward,Vector3.up).normalized;
+            bool aligned=setup!=null&&setup.Aligned;
+            // Page transitions must not recapture the wearer's current gaze: dwelling on a
+            // right-hand button would move the next page right, accumulating apparent drift.
+            // After alignment, all pages share the fixed participant midline and seated height.
+            Vector3 anchor=aligned?setup.BodyFrame.position+Vector3.up*setup.SeatedHeadHeight:head.position;
+            var forward=Vector3.ProjectOnPlane(aligned?setup.BodyFrame.forward:head.forward,Vector3.up).normalized;
             if(forward.sqrMagnitude<.5f)return;
             // Keep the entire panel above the hand workspace rather than in front of the lap.
-            Vector3 position=head.position+forward*1.4f+Vector3.up*.18f;
-            if(setup!=null&&setup.Aligned)position.y=Mathf.Max(position.y,setup.BodyFrame.position.y+setup.Parameters.tableHeight+.68f);
+            Vector3 position=anchor+forward*1.4f+Vector3.up*.18f;
+            if(aligned)position.y=Mathf.Max(position.y,setup.BodyFrame.position.y+setup.Parameters.tableHeight+.68f);
             panel.SetPositionAndRotation(position,Quaternion.LookRotation(forward,Vector3.up));placed=true;
         }
-        bool HandsReady=>hands!=null && hands.Left.Availability==HandAvailability.Available && hands.Right.Availability==HandAvailability.Available;
-        bool BodyReady=>body!=null && body.Valid[1]&&body.Valid[2]&&body.Valid[5]&&body.Valid[6] && Time.realtimeSinceStartupAsDouble-body.ReceivedAt<.25;
+        ParticipantHands HandProfile=>setup==null?ParticipantHands.Both:setup.Parameters.participantHands;
+        bool SingleHand=>HandProfile!=ParticipantHands.Both;
+        string SourceSide=>HandProfile==ParticipantHands.LeftOnly?"LEFT":"RIGHT";
+        string TargetSide=>HandProfile==ParticipantHands.LeftOnly?"RIGHT":"LEFT";
+        bool Required(int side)=>setup==null||setup.Parameters.UsesSide(side);
+        bool HandReady(TrackingHandFrame h)=>h.Availability==HandAvailability.Available && Time.realtimeSinceStartupAsDouble-h.ReceivedAt<.15;
+        bool HandsReady=>hands!=null && (!Required(0)||HandReady(hands.Left)) && (!Required(1)||HandReady(hands.Right));
+        bool BodyReady=>body!=null && (!Required(0)||(body.Valid[1]&&body.Valid[2])) && (!Required(1)||(body.Valid[5]&&body.Valid[6])) && Time.realtimeSinceStartupAsDouble-body.ReceivedAt<.25;
         bool FitReady=>setup!=null && setup.Aligned&&setup.Parameters.tableAlignmentConfirmed&&(fittedArms==null||fittedArms.HasFit)&&HandsReady&&BodyReady&&stableSince>=0&&Time.realtimeSinceStartupAsDouble-stableSince>=1;
         void Update()
         {
@@ -273,6 +284,10 @@ namespace QuestResearch.Embodiment
                     for(int n=0;n<10;n++){int number=participantPage*10+n+1;Set(n,"P"+number.ToString("D2")+(number==participantNumber?"\nSelected":""));}
                     Set(12,"P01 - P10",participantPage>0);Set(13,"P11 - P20",participantPage==0);
                     Set(14,"Confirm",recorder==null||!recorder.Saving);Set(15,"Back");break;
+                case Page.HandSetup:
+                    heading.text="Choose physical hand availability";
+                    instructions.text="Select the hand(s) you will use.\nOne-hand mode needs only the selected hand.\nPractice shows that hand on its own side.\nMirroring shows ONLY the opposite virtual hand.";
+                    Set(0,"Both hands");Set(1,"Left hand only");Set(2,"Right hand only");break;
                 case Page.RecordingError:
                     heading.text="Recording needs attention";
                     instructions.text="Recording has stopped. Earlier files are retained.\nPlease tell the researcher before continuing.\n"+"Check headset storage and the recording logs.\nStart a new session after resolving the problem.";
@@ -330,13 +345,21 @@ namespace QuestResearch.Embodiment
                     Set(5,"Finish");break;
                 case Page.Finished:
                     heading.text="Thank you for participating";
-                    instructions.text="The demo is complete.\nYou can now take off the headset.\n\nThis was a research demonstration.";
+                    instructions.text="The demo is complete.\nPlease remove your headset.\n\nYour researcher will now conduct a brief\ninterview about your experience.";
                     Set(5,"New participant");break;
                 case Page.Settings:
                     heading.text="Take your time";
                     instructions.text=(notice.Length>0?notice+"\n":"The experience is paused.\n")+"Rest your hands or adjust your position.\nRecalibration restarts familiarisation.\nResume when tracking and fit are ready.";
                     Set(0,"Recalibrate");Set(1,"Adjust table");Set(4,"End demo");Set(5,"Resume",setup==null||FitReady);break;
 
+            }
+            if(SingleHand)
+            {
+                if(page==Page.MirrorIntro)instructions.text="Move your REAL "+SourceSide+" hand.\nOnly the virtual "+TargetSide+" hand will appear.\nThe source-side virtual limb is hidden.\nFollow gentle prompts and rest whenever needed.";
+                else if(page!=Page.Running&&page!=Page.SurfaceCapture&&page!=Page.HandSetup)
+                    instructions.text=instructions.text.Replace("both palms","your "+SourceSide.ToLowerInvariant()+" palm").Replace("both hands and arms","the visible hand and arm").Replace("both wrists, elbows and shoulders","your tracked wrist and estimated arm").Replace("each hand","your selected hand").Replace("your hands","your selected hand");
+                if(page==Page.SurfaceCapture)heading.text="Rest your "+SourceSide+" hand on the table";
+                if(page==Page.Table)Set(2,"Estimate from hand");
             }
         }
         void Act(int i)
@@ -347,8 +370,10 @@ namespace QuestResearch.Embodiment
                 case Page.Participant:
                     if(i<10)participantNumber=participantPage*10+i+1;
                     if(i==12)participantPage=0;if(i==13)participantPage=1;
-                    if(i==14){if(recorder.Begin("P"+participantNumber.ToString("D2")))Show(Page.SkinTone);else Show(Page.RecordingError);}
+                    if(i==14){if(recorder.Begin("P"+participantNumber.ToString("D2")))Show(Page.HandSetup);else Show(Page.RecordingError);}
                     if(i==15)Show(Page.Welcome);break;
+                case Page.HandSetup:
+                    if(i>=0&&i<=2){setup.SetParticipantHands((ParticipantHands)i);fittedArms?.ClearFit();stableSince=-1;Record("hand_profile_selected");Show(Page.SkinTone);}break;
                 case Page.RecordingError:
                     if(i==5){recorder.End("recording_error");Show(Page.Welcome);}break;
                 case Page.SkinTone:
@@ -356,7 +381,8 @@ namespace QuestResearch.Embodiment
                     if(i==5)Show(Page.Calibration);break;
                 case Page.Calibration:
                     if(i==4)Show(Page.SkinTone);
-                    if(i==5){setup.BeginParticipantSetup();body.BeginParticipant(0);BeginAlignment();}break;
+                    // Alignment belongs to the current participant: preserve their selected hand profile.
+                    if(i==5){body.BeginParticipant(0);BeginAlignment();}break;
                 case Page.Table:
                     if(i==0||i==1){notice="";setup.AdjustTableHeight(i==0?-.01f:.01f);Record("surface_height_step");}
                     if(i==2){surfaceCapture.Begin();notice="";Show(Page.SurfaceCapture);}
@@ -414,7 +440,7 @@ namespace QuestResearch.Embodiment
         {
             switch(p)
             {
-                case Page.Welcome:case Page.Participant:return "01 / 07   WELCOME";
+                case Page.Welcome:case Page.Participant:case Page.HandSetup:return "01 / 07   WELCOME";
                 case Page.SkinTone:return "02 / 07   YOUR APPEARANCE";
                 case Page.Ready:case Page.Comfort:return "04 / 07   FAMILIARISATION";
                 case Page.MirrorIntro:return "05 / 07   MIRROR EXPERIENCE";
@@ -424,17 +450,18 @@ namespace QuestResearch.Embodiment
                 default:return "03 / 07   PERSONAL FIT";
             }
         }
-        static bool RequiresAlignment(Page p)=>p!=Page.Welcome&&p!=Page.Participant&&p!=Page.RecordingError&&p!=Page.SkinTone&&p!=Page.Calibration&&p!=Page.Finished;
+        static bool RequiresAlignment(Page p)=>p!=Page.Welcome&&p!=Page.Participant&&p!=Page.HandSetup&&p!=Page.RecordingError&&p!=Page.SkinTone&&p!=Page.Calibration&&p!=Page.Finished;
         void StartActivity(bool mirrored)
         {
-            mirrorActivity=mirrored;activity.Begin(mirrored);lastPrompt=-1;
-            setup.SetMovement(mirrored?MovementCondition.SwapBoth:MovementCondition.Normal,true);
+            mirrorActivity=mirrored;activity.Begin(mirrored,HandProfile);lastPrompt=-1;
+            var condition=!mirrored?MovementCondition.Normal:!SingleHand?MovementCondition.SwapBoth:HandProfile==ParticipantHands.LeftOnly?MovementCondition.LeftToRight:MovementCondition.RightToLeft;
+            setup.SetMovement(condition,!mirrored||!SingleHand);
             Record("automatic_mapping_selected");Show(Page.Running);
         }
         void UpdateActivity()
         {
             if(page!=Page.Running)return;
-            if(!FitReady){notice="Tracking interrupted. Keep both hands in view.";resumePage=Page.Running;Record("tracking_pause");Show(Page.Settings);return;}
+            if(!FitReady){notice=SingleHand?"Tracking interrupted. Keep your "+SourceSide+" hand in view.":"Tracking interrupted. Keep both hands in view.";resumePage=Page.Running;Record("tracking_pause");Show(Page.Settings);return;}
             activity.Advance(Time.unscaledDeltaTime);
             if(activity.PromptIndex!=lastPrompt){lastPrompt=activity.PromptIndex;Record("activity_prompt");}
             if(activity.Complete){Record("activity_complete");Show(mirrorActivity?Page.FutureTouch:Page.Comfort);}

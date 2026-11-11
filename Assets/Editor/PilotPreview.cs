@@ -27,6 +27,25 @@ public static class PilotPreview
         activity.SkipPrompt();activity.SkipPrompt();if(!activity.Complete)throw new BuildFailedException("Skip did not finish practice.");
         activity.Begin(true);for(int i=0;i<6;i++)activity.SkipPrompt();
         if(!activity.Complete||activity.Remaining!=0)throw new BuildFailedException("Mirror sequence length failed.");
+        // A missing contralateral hand must not be needed to produce the requested opposite pose.
+        foreach(var profile in new[]{ParticipantHands.LeftOnly,ParticipantHands.RightOnly})
+        {
+            var parameters=new SeatedParameters{participantHands=profile};
+            int sourceSide=profile==ParticipantHands.LeftOnly?0:1;
+            if(!parameters.Valid()||!parameters.UsesSide(sourceSide)||parameters.UsesSide(1-sourceSide))throw new BuildFailedException("One-hand source selection failed.");
+            var left=new QuestResearch.Hands.TrackingHandFrame();var right=new QuestResearch.Hands.TrackingHandFrame();
+            var source=sourceSide==0?left:right;source.JointValid[0]=true;source.JointPoses[0]=new Pose(new Vector3(.2f,.8f,.3f),Quaternion.Euler(10,20,30));
+            var a=new DisplayedHandPose();var b=new DisplayedHandPose();
+            MovementReflection.Map(left,right,a,b,sourceSide==0?MovementCondition.LeftToRight:MovementCondition.RightToLeft,false,true,Pose.identity);
+            var target=sourceSide==0?b:a;var hidden=sourceSide==0?a:b;
+            if(!target.Valid[0]||hidden.Valid[0]||Vector3.Distance(target.Joints[0].position,new Vector3(-.2f,.8f,.3f))>.00001f)throw new BuildFailedException("Single-hand opposite-only mapping failed.");
+            source.Invalidate(QuestResearch.Hands.HandAvailability.Waiting);
+            MovementReflection.Map(left,right,a,b,sourceSide==0?MovementCondition.LeftToRight:MovementCondition.RightToLeft,false,true,Pose.identity);
+            if(a.Valid[0]||b.Valid[0])throw new BuildFailedException("Lost selected hand must hide both outputs.");
+            activity.Begin(true,profile);
+            for(int i=0;i<6;i++){if(!activity.Prompt.Contains(sourceSide==0?"REAL LEFT":"REAL RIGHT"))throw new BuildFailedException("One-hand cue requests wrong physical side.");activity.SkipPrompt();}
+            if(!activity.Complete)throw new BuildFailedException("One-hand activity duration failed.");
+        }
         var scene=EditorSceneManager.NewScene(NewSceneSetup.EmptyScene,NewSceneMode.Single);
         var camera=new GameObject("Pilot preview camera").AddComponent<Camera>();
         camera.fieldOfView=65;camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(.60f,.64f,.67f);

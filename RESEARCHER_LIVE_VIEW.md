@@ -1,0 +1,33 @@
+# Researcher live view and interview handoff
+
+The standalone Quest app runs on the headset. Unity does not need to be open.
+Use the Desktop **Quest Live View.command** shortcut to watch its USB display on this Mac.
+
+1. Connect the Quest with a USB data cable. Wake it and allow USB debugging if prompted.
+2. Double-click **Quest Live View.command** on the Desktop.
+3. Wear the headset and open **Quest Body Driven Avatar**. The researcher watches the live-view window.
+4. Close that window to stop viewing. This does not stop the participant app or its data recording.
+
+The launcher uses software decoding/rendering and places a 1100-pixel-wide window at the top-left to avoid the blank-window behavior seen with automatic Metal/VideoToolbox playback on this Mac.
+
+The launcher is read-only, uses no audio forwarding, and saves no video. Movement-data recording and the existing Desktop sync remain separate. It uses the same Unity Android SDK adb as the data copier. Keep the headset awake/worn; sleeping headsets can show a blank or frozen display. Disconnecting USB ends the stream; reconnect and relaunch the shortcut. Avoid running multiple copies.
+
+## Setup on another Apple Silicon Mac
+
+Install Homebrew, then `brew install scrcpy`. Install Unity 6000.6.2f1 Android support, or set the `ADB` environment variable to your Android SDK adb executable. Copy `Tools/Quest Live View.command` to Desktop and make it executable (`chmod +x`). Override `SCRCPY` if installed elsewhere.
+
+The default captures the **entire headset display without cropping**, at maximum dimension 1920 and up to 30fps. Quest firmware may expose both eye images or black borders. Both-eye output is intentional so the researcher can see the complete view. An attempted single-eye crop cut off content on this headset and was removed. No system display-size override is applied.
+
+This is a streamed compositor image, not eye tracking or a reproduction of binocular perception. It has streaming delay and may omit protected/system content; do not use its timing to synchronize experimental touch. Check headset smoothness while streaming before a participant session.
+
+## Finish screen, version 0.12.1 (24)
+
+**Thank you for participating**
+
+> The demo is complete.
+> Please remove your headset.
+> Your researcher will now conduct a brief interview about your experience.
+
+Selecting Finish still closes the movement-data session before the interview. The app does not record interview audio.
+
+Official tool documentation: https://github.com/Genymobile/scrcpy and https://github.com/Genymobile/scrcpy/blob/master/doc/video.md
