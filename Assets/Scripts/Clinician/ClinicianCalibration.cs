@@ -37,7 +37,7 @@ namespace QuestResearch.Clinician
         public struct Sample{public Vector3 trackerPosition,wristPosition;public Quaternion trackerRotation,wristRotation;}
         // Provisional engineering gates for this prototype, not validated acceptance criteria.
         public const int MinimumSamples=300;
-        public const float MinimumOrientationSpread=25f,MinimumPositionSpread=.08f,MaximumResidual=.02f,MaximumMountDistance=.25f;
+        public const float MinimumOrientationSpread=25f,MinimumPositionSpread=.05f,MaximumResidual=.02f,MaximumMountDistance=.25f;
 
         public static bool TrySolve(IReadOnlyList<Sample> samples,string serial,string hand,out ClinicianCalibration result,out string message)
         {

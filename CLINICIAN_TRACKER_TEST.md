@@ -60,7 +60,7 @@ test checks; HTC documents PC use with a SteamVR headset connected.
 
 ## Provisional gates (engineering, not validated)
 
-Calibration needs ≥ 300 usable samples over 15 s, ≥ 25° tracker rotation spread, ≥ 8 cm hand position spread,
+Calibration needs ≥ 300 usable samples from 15 s of usable tracking (at most 45 s), ≥ 25° tracker rotation spread, ≥ 5 cm hand position spread,
 ≤ 2 cm RMS residual and a tracker-to-wrist distance ≤ 25 cm. Samples are skipped when the tracker moves faster
 than 0.25 m/s (hand tracking and the USB stream have different latencies). These numbers are starting points
 for the prototype, not acceptance criteria.
