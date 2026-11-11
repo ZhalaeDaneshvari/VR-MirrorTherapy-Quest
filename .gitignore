@@ -28,3 +28,27 @@ Assets/StreamingAssets.meta
 Assets/Resources/OVRBuildConfig.asset*
 Assets/StreamingAssets/RuntimeActionBindings.json*
 __pycache__/
+
+# Participant movement data and transfer artefacts (see MOVEMENT_DATA.md).
+# Raw sessions belong in approved lab storage, never in Git.
+MovementData/
+Research Movement Data Demo/
+*.jsonl
+*.jsonl.partial
+movement-joints.csv
+TRANSFER_VERIFIED.json
+transfer.log
+transfer-errors.log
+
+# Signing keys and credentials.
+*.keystore
+*.jks
+*.p12
+*.pfx
+*.pem
+*.key
+.env
+.env.*
+
+# Transfer bundles.
+*.bundle
