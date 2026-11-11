@@ -58,7 +58,8 @@ turn ~90° in place, cover the tracker's cameras, uncover. It then reports:
 | slide | horizontal and vertical displacement between rest poses | ≥ 10 cm horizontal, < 5 cm vertical |
 | lift | vertical displacement | ≥ +8 cm, i.e. +Y is up |
 | turn | rotation angle, axis tilt | ≥ 45° about a near-vertical axis |
-| covered / uncovered | statuses seen, drift, recovery time | informational only |
+| recovers after uncovering | time to the first valid `Running_OK` sample | within the 10 s uncover step |
+| covered | statuses seen, time to loss, displacement while still valid | informational only |
 
 These thresholds only catch a missing or mis-oriented signal. They are not accuracy, latency or
 acceptance criteria. A rest pose that is not still (> 1 cm spread over its last 2 s) makes the related check
@@ -74,10 +75,24 @@ inconclusive rather than passed.
   alignment inside that frame is not known. Alignment to the standalone Quest scene must come from this
   project's own calibration.
 - `GetTimeSinceLastVsync` returned no data for this background client.
-- Battery is readable (`Prop_DeviceBatteryPercentage_Float`); it was 4–6 % during these checks.
+- Battery is readable (`Prop_DeviceBatteryPercentage_Float`); it was 2–6 % during these checks.
 
-Not yet verified: deliberate movement (hardware test 1), behaviour when the headset leaves Link, network
-streaming to the standalone Quest app, calibration accuracy, latency.
+### Hardware test 1, first run (battery 4 %)
+
+Movement reached the probe with the expected axes: slide 10.4 cm horizontal / 0.0 cm vertical, lift
++16.6 cm (+Y up), turn 59.9° about an axis 0.4° from vertical; rest noise 0.14 mm RMS. The physical
+distances and angle were not measured, so these numbers show direction and plausibility, not accuracy.
+
+Covering: the pose stayed valid and unchanged for 3.5 s after the prompt, then moved 6 cm at 0.6 m/s
+(physical movement while covering is the likely cause), then switched to `Running_OutOfRange` with
+`valid=false`. **Invalid poses arrive as position (0, 0, 0), frozen**: any display must gate on validity
+or the clinician hand would jump to the frame origin. The tracker did **not** recover within 10 s of
+uncovering and was still `Running_OutOfRange` minutes later at 2 % battery. Recovery was not a check
+in that run (it reported PASS); it is now, so a run like that one fails.
+
+Not yet verified: recovery after occlusion (with a charged tracker), whether the frame is the same after
+recovery, behaviour when the headset leaves Link, network streaming to the standalone Quest app,
+calibration accuracy, latency.
 
 ## Documented constraints (checked 2026-11-11)
 

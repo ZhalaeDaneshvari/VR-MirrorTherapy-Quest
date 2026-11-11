@@ -100,9 +100,12 @@ namespace QuestResearch.ClinicianTracker
             double drift=turn.Found?cover.Samples.Where(s=>s.Raw.Valid).Select(s=>PoseMath.Distance(s.Raw.Position,turn.Position)).DefaultIfEmpty(0).Max():double.NaN;
             var un=P("uncover");var firstOk=un.Samples.FirstOrDefault(s=>s.Raw.Valid&&s.Connected&&s.Result==ETrackingResult.Running_OK);
             lines.Add("[INFO] covered: statuses "+string.Join(", ",results)+(firstLoss==null?"; no loss reported":"; first loss "+R(firstLoss.HostSeconds-cover.Start,2)+" s after prompt")
-                +"; max valid-pose drift "+(double.IsNaN(drift)?"n/a":R(drift*100)+" cm"));
-            lines.Add("[INFO] uncovered: "+(firstOk==null?"no Running_OK sample":"Running_OK "+R(Math.Max(0,firstOk.HostSeconds-un.Start),2)+" s after prompt")
-                +(uncover.Found&&turn.Found?"; resting position differs from pre-cover by "+R(PoseMath.Distance(uncover.Position,turn.Position)*100)+" cm":""));
+                +"; max displacement while still valid "+(double.IsNaN(drift)?"n/a":R(drift*100)+" cm (includes any physical movement while covering)"));
+            // Invalid poses arrive as zeros, so a tracker that never recovers must fail the test, not pass quietly.
+            Check("recovers after uncovering",firstOk!=null,
+                firstOk==null?"no valid Running_OK sample in "+un.Seconds+" s":"Running_OK "+R(Math.Max(0,firstOk.HostSeconds-un.Start),2)+" s after prompt"
+                +(uncover.Found&&turn.Found?"; rest position differs from pre-cover by "+R(PoseMath.Distance(uncover.Position,turn.Position)*100)+" cm":""),
+                "valid Running_OK again within "+un.Seconds+" s");
             var rates=phases.ToDictionary(p=>p.Key,Rate);var stillRate=Rate(P("still"));
             lines.Add("[INFO] still-phase timing: "+System.Text.Json.JsonSerializer.Serialize(stillRate,ProbeLog.Json));
             passed=all;

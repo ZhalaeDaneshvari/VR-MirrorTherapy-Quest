@@ -8,7 +8,7 @@ namespace QuestResearch.ClinicianTracker
 {
     static class Live
     {
-        static string N(double v,string f="+0.000;-0.000")=>v.ToString(f,CultureInfo.InvariantCulture);
+        static string N(double v,string f="+0.000;-0.000")=>(v+0.0).ToString(f,CultureInfo.InvariantCulture);// +0.0 folds -0 into 0
         public static string Line(TrackerSample s)
         {
             var p=s.Raw.Position;var q=s.Raw.Rotation;var v=s.Raw.Velocity;double speed=Math.Sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]);
