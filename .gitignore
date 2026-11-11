@@ -52,3 +52,7 @@ transfer-errors.log
 
 # Transfer bundles.
 *.bundle
+
+# Clinician tracker probe (.NET, Windows): keep its project file; ignore build output.
+!Tools/ClinicianTracker/**/*.csproj
+Tools/ClinicianTracker/**/[Bb]in/

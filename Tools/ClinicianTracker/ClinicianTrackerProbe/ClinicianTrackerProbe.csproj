@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Windows-only clinician tracker probe. Lives outside Assets/ so Unity never compiles or imports it. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>QuestResearch.ClinicianTracker</RootNamespace>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <Version>0.1.0</Version>
+    <!-- Vendored Valve binding produces style warnings that are not ours to change. -->
+    <NoWarn>$(NoWarn);CS0108;CS0169;CS0414;CS0649;CS8981</NoWarn>
+    <SteamVRDir Condition="'$(SteamVRDir)'==''">C:\Program Files (x86)\Steam\steamapps\common\SteamVR</SteamVRDir>
+    <OpenVrLoader>$(SteamVRDir)\bin\win64\openvr_api.dll</OpenVrLoader>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\ThirdParty\OpenVR\openvr_api.cs" Link="ThirdParty\openvr_api.cs" />
+    <!-- Use the loader installed with SteamVR instead of committing a binary. -->
+    <None Include="$(OpenVrLoader)" Link="openvr_api.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('$(OpenVrLoader)')" />
+  </ItemGroup>
+  <Target Name="RequireOpenVrLoader" BeforeTargets="Build" Condition="!Exists('$(OpenVrLoader)')">
+    <Error Text="SteamVR openvr_api.dll not found at $(OpenVrLoader). Install SteamVR or build with -p:SteamVRDir=&lt;SteamVR folder&gt;." />
+  </Target>
+</Project>

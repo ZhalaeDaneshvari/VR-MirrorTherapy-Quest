@@ -43,3 +43,18 @@ Record acquisition timestamp and clock domain, host receipt time, sensor/frame s
 ## Interim decision
 
 The user subsequently selected a manually triggered visual stroke for now: palm-down forearm, elbow toward wrist, with a three-second countdown. That work is on `codex/manual-forearm-touch`; see `MANUAL_TOUCH_DEMO.md`. Automatic clinician sensing remains a separate future investigation, not a capability implied by this manual demo.
+
+## Selected route: VIVE Ultimate Tracker (2026-11-11)
+
+The lab now has one VIVE Ultimate Tracker with its dongle on a Windows PC (SteamVR, VIVE Hub). The clinician's hand pose will come from this tracker, not from Quest hand tracking, so clinician identity is the tracker's serial number and never one of the wearer's XR Hands slots. One tracker gives a rigid hand position/orientation only: the virtual clinician hand will use a fixed, labelled finger pose, and nothing here senses fingers or physical contact.
+
+Staged plan, each stage gated by a hardware test before the next:
+
+1. Windows live probe of pose, identity, status and host timing — implemented in `Tools/ClinicianTracker` (see its README); movement test pending.
+2. Stream poses to a separate Quest test app (own package ID, not the pilot) while participant hand tracking runs natively; verify whether the tracker still works when the headset leaves Link. HTC documents PC use only with a SteamVR headset connected, so this is an open risk, not an assumption.
+3. Explicit tracker-to-Quest-scene calibration plus tracker-to-hand mounting offset, verified with a simple marker.
+4. Fixed-pose virtual clinician hand driven from the calibrated pose.
+5. Congruent and cross-limb reflected placement about the participant's calibrated midline; first task an elbow-to-wrist stroke on top of the forearm.
+6. Hide stale/invalid input with clear status; require recalibration when alignment is invalid; log raw, calibrated and displayed clinician poses separately with timing and validity.
+
+The feature stays optional and off by default; the accepted pilot scene, APK and participant mirroring are not modified for it.
