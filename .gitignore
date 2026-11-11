@@ -56,3 +56,7 @@ transfer-errors.log
 # Clinician tracker probe (.NET, Windows): keep its project file; ignore build output.
 !Tools/ClinicianTracker/**/*.csproj
 Tools/ClinicianTracker/**/[Bb]in/
+
+# Clinician tracker test scene: regenerated from the pilot scene by its Configure menu.
+Assets/Scenes/QuestBodyAvatarClinicianTest.unity
+Assets/Scenes/QuestBodyAvatarClinicianTest.unity.meta

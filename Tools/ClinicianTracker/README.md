@@ -135,3 +135,12 @@ accuracy, latency.
   [Tracking not stable](https://business.vive.com/us/support/ultimate-tracker/faq/tracking-is-not-stable-or-accurate.html)
 - OpenVR: each driver has its own raw space; `TrackedDevicePose_t` carries no timestamp.
   [Driver API documentation](https://github.com/ValveSoftware/openvr/blob/master/docs/Driver_API_Documentation.md)
+
+## Streaming to the Quest test app
+
+`stream` sends every tracker sample to the clinician test app over USB (`adb reverse tcp:47800`; it finds
+Unity's `adb.exe` or takes `--adb`) and forwards researcher keys: **C** calibrate, **V** confirm alignment,
+**K** marker, **0/1/2** off/congruent/reflected, **X** clear calibration, **A** redo `adb reverse`, **Q** quit.
+Line protocol and procedure: see `StreamServer.cs` and `CLINICIAN_TRACKER_TEST.md` at the repository root.
+Verified on loopback (2026-11-11): 250 Hz frames, no drops, header, clock-sync reply and Quest-to-PC messages
+logged.

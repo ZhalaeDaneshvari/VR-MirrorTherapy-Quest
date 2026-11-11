@@ -27,8 +27,65 @@ namespace QuestResearch.ClinicianTracker
 
 list  shows every SteamVR device and its identity.
 live  prints the clinician tracker pose and logs it until Ctrl+C (or --seconds).
-test  guided ~1 minute movement test (hardware test 1); writes summary.json. Pass the
-      distances/angle you will actually measure out so the report can compare them.";
+  ClinicianTrackerProbe stream [--serial S] [--hz 250] [--out logs] [--port 47800] [--adb <adb.exe>|none] [--hand right|left]
+
+list    shows every SteamVR device and its identity.
+live    prints the clinician tracker pose and logs it until Ctrl+C (or --seconds).
+test    guided ~1 minute movement test (hardware test 1); writes summary.json. Pass the
+        distances/angle you will actually measure out so the report can compare them.
+stream  sends the pose to the Quest clinician test app over USB (adb reverse) and takes researcher keys:
+        C calibrate   V confirm alignment   K marker on/off   0 hand off   1 congruent   2 reflected
+        X clear calibration   A redo adb reverse   Q quit";
+        static readonly Dictionary<ConsoleKey,string> Keys=new Dictionary<ConsoleKey,string>{
+            [ConsoleKey.C]="calibrate",[ConsoleKey.V]="verify",[ConsoleKey.K]="marker",[ConsoleKey.X]="clear",
+            [ConsoleKey.D0]="mode-off",[ConsoleKey.NumPad0]="mode-off",[ConsoleKey.D1]="mode-congruent",[ConsoleKey.NumPad1]="mode-congruent",
+            [ConsoleKey.D2]="mode-reflected",[ConsoleKey.NumPad2]="mode-reflected"};
+        static int Stream(ProbeSession session,ProbeLog log,Stopwatch clock,DeviceInfo tracker,Dictionary<string,string> options)
+        {
+            int port=int.Parse(options.GetValueOrDefault("port","47800"),CultureInfo.InvariantCulture);
+            string hand=options.GetValueOrDefault("hand","right");if(hand is not ("right" or "left"))throw new ArgumentException("--hand must be right or left");
+            string adb=options.GetValueOrDefault("adb");
+            string Clean(string v)=>(v??"").Replace(",", " ");
+            string header="H,1,"+Clean(tracker.Serial)+","+Clean(tracker.Model)+","+Stopwatch.Frequency+","+hand;
+            string reverse=StreamServer.Reverse(adb,port);Console.WriteLine(reverse);log.Event(clock.ElapsedTicks,"adbReverse",new{port,result=reverse});
+            using var server=new StreamServer(port,header,clock);
+            var inbox=new System.Collections.Concurrent.ConcurrentQueue<string>();server.Received+=inbox.Enqueue;
+            Console.WriteLine("Listening on 127.0.0.1:"+port+". Start the clinician test app on the Quest. Keys: C V K 0 1 2 X A Q.");
+            double lastPrint=0,lastKeys=0;bool keys=!Console.IsInputRedirected;
+            double seconds=double.Parse(options.GetValueOrDefault("seconds","0"),CultureInfo.InvariantCulture);
+            session.Run(seconds,s=>
+            {
+                long now=clock.ElapsedTicks;double t=now/(double)Stopwatch.Frequency;
+                server.Frame(s,now);
+                while(inbox.TryDequeue(out var line))
+                {
+                    if(line.StartsWith("S,"))continue;// latest status is shown on the status line
+                    log.Event(now,"quest",new{line});Console.WriteLine();Console.WriteLine("[Quest] "+(line.StartsWith("L,")?line.Substring(2):line));
+                }
+                if(keys&&t-lastKeys>=0.05)
+                {
+                    lastKeys=t;
+                    while(Console.KeyAvailable)
+                    {
+                        var key=Console.ReadKey(true).Key;
+                        if(key is ConsoleKey.Q or ConsoleKey.Escape)return false;
+                        if(key==ConsoleKey.A){string r=StreamServer.Reverse(adb,port);log.Event(now,"adbReverse",new{port,result=r});Console.WriteLine();Console.WriteLine(r);continue;}
+                        if(!Keys.TryGetValue(key,out var command))continue;
+                        if(!server.ClientConnected){Console.WriteLine();Console.WriteLine("Quest app not connected; '"+command+"' not sent.");continue;}
+                        server.Command(command);log.Event(now,"command",new{command});Console.WriteLine();Console.WriteLine("-> "+command);
+                    }
+                }
+                if(t-lastPrint>=0.25)
+                {
+                    lastPrint=t;string tr=s==null?"tracker MISSING":(s.Result+(s.Raw.Valid?"":" INVALID"));
+                    Console.Write("\r"+("PC: "+tr+" | sent "+server.Sent+" dropped "+server.Dropped+" | Quest: "+server.LastStatus).PadRight(150).Substring(0,150));
+                }
+                return true;
+            });
+            Console.WriteLine();
+            log.Event(clock.ElapsedTicks,"streamSummary",new{sent=server.Sent,dropped=server.Dropped,connections=server.Connections});
+            return 0;
+        }
         static int Main(string[] args)
         {
             if(args.Length==0||args[0] is "-h" or "--help"){Console.WriteLine(Usage);return 0;}
@@ -39,7 +96,7 @@ test  guided ~1 minute movement test (hardware test 1); writes summary.json. Pas
             double seconds=double.Parse(options.GetValueOrDefault("seconds","0"),CultureInfo.InvariantCulture);
             double Positive(string key,string fallback){double v=double.Parse(options.GetValueOrDefault(key,fallback),CultureInfo.InvariantCulture);if(v<=0)throw new ArgumentException("--"+key+" must be > 0");return v;}
             double slideCm=Positive("slide-cm","30"),liftCm=Positive("lift-cm","20"),turnDeg=Positive("turn-deg","90");
-            if(mode is not ("list" or "live" or "test")){Console.Error.WriteLine("Unknown mode: "+mode+"\n\n"+Usage);return 2;}
+            if(mode is not ("list" or "live" or "test" or "stream")){Console.Error.WriteLine("Unknown mode: "+mode+"\n\n"+Usage);return 2;}
             var clock=Stopwatch.StartNew();OpenVrTracker vr;
             try{vr=OpenVrTracker.Open(clock);}catch(Exception e){Console.Error.WriteLine(e.Message);return 3;}
             using(vr)
@@ -74,6 +131,7 @@ test  guided ~1 minute movement test (hardware test 1); writes summary.json. Pas
                     session.Run(seconds,s=>{double now=clock.Elapsed.TotalSeconds;if(now-last>=0.1){last=now;Console.Write("\r"+(s==null?"tracker missing in SteamVR".PadRight(100):Live.Line(s))+"  ");}return true;});
                     Console.WriteLine();
                 }
+                else if(mode=="stream")code=Stream(session,log,clock,tracker,options);
                 else
                 {
                     var test=new MovementTest(slideCm,liftCm,turnDeg);
