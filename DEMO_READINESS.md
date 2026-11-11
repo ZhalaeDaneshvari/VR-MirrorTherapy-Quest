@@ -39,3 +39,9 @@ Official references checked 11 November 2026:
 ## Validation completed
 
 Unity 6000.6.2f1 Android build succeeded. Existing recording checks and UI render checks passed, plus new left-only/right-only opposite mapping, invalidated-source and cue tests. The hand-selection page was visually reviewed. APK: `Builds/QuestBodyDrivenAvatar.apk`. Version 0.13.0 / code 25. No Quest was connected for installation; all headset checks above remain pending.
+
+### One-hand alignment fix (0.13.1 / code 26)
+
+The Begin alignment action was resetting the selected hand profile to Both. Removed that redundant participant reset so alignment preserves LeftOnly/RightOnly. New-participant setup still resets the profile intentionally. Android build, recording checks, body mapping checks and guided UI checks passed. These automated checks do not establish on-headset calibration success; repeat the selected-hand acceptance checks above.
+
+Version 0.13.1 / code 26 was installed over the existing app and launched on the connected Quest 3 on 11 November 2026; existing recordings were preserved. User confirmation of one-hand alignment remains pending.

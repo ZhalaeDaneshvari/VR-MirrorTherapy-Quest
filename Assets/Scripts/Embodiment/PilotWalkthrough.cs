@@ -381,7 +381,8 @@ namespace QuestResearch.Embodiment
                     if(i==5)Show(Page.Calibration);break;
                 case Page.Calibration:
                     if(i==4)Show(Page.SkinTone);
-                    if(i==5){setup.BeginParticipantSetup();body.BeginParticipant(0);BeginAlignment();}break;
+                    // Alignment belongs to the current participant: preserve their selected hand profile.
+                    if(i==5){body.BeginParticipant(0);BeginAlignment();}break;
                 case Page.Table:
                     if(i==0||i==1){notice="";setup.AdjustTableHeight(i==0?-.01f:.01f);Record("surface_height_step");}
                     if(i==2){surfaceCapture.Begin();notice="";Show(Page.SurfaceCapture);}
