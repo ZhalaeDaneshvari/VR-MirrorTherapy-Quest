@@ -163,3 +163,17 @@ scene; the accepted pilot scene and pilot scripts are unchanged.
   `participant_arm_hold_started/ended` events with the reason. The headset status line shows "HOLDING … arm".
 - These limits are provisional choices for the stroke task (participant instructed to keep the arm still), not
   validated parameters. A held arm is an inference: it cannot show movement made while the hand is occluded.
+
+### 2026-11-12: reflected stroke with the arm hold installed
+
+- After reinstalling, opening the app triggered a burst of ~60 Quest tracking-origin events within about a
+  second (app start / headset put on); calibration restarted sampling on each, as designed, then settled.
+- Calibration: first attempt rejected (2.4 cm residual), second accepted (1.3 cm RMS, 8.2 cm mount, tracker
+  turned 68°, 971 samples); alignment confirmed at 1.3 cm vs the wearer's own right wrist.
+- Reflected stroke (156 s of reflected mode): the tester reported the arm stayed visible. Headset log: **0**
+  forearm disappearances while the clinician hand was shown (28 in the earlier run), clinician palm within 6 cm
+  of the displayed forearm over 35–100 % of elbow-to-wrist (minimum 0.1 cm).
+- **The hold itself was not exercised:** 0 held frames and 0 hold events. Participant hand tracking did not drop
+  during these strokes, so the improvement came from tracking holding up (stroke technique, hand position or
+  conditions), not from the hold. The hold remains untested on the headset; a deliberate test (fully covering
+  the resting hand for 1–2 s while the clinician hand is near) is still needed.
