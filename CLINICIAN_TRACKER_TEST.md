@@ -106,3 +106,23 @@ are obtained; nothing above is a claim that the clinician display is accurate.
   changes (18 in 2 min), which invalidate any alignment, as the pilot itself also does. Both devices use
   inside-out cameras; lighting, visual features and the boundary/map setup for this room are the next things
   to fix. No clinician hand has been displayed or judged yet.
+
+### 2026-11-12: first displayed clinician hand (new tracker, congruent mode)
+
+Setup: replacement tracker (serial 5B-BH3R02428) after a new VIVE Hub map; SteamVR headless (`null` driver,
+`oculus` disabled); test app over USB; session driven remotely from the PC. The tester wore the tracker on the
+back of the right hand and sat inside the mapped area.
+
+- Calibration accepted on the first attempt: 1.2 cm RMS residual, 14.2 cm tracker-to-wrist mount, tracker turned
+  82°, 6.8 cm hand spread, 606 samples. The tracker dropped out twice during calibration (15:31:56–15:32:04 and
+  15:32:06–15:33:07 local), so collection hit its 45 s cap and the first confirmation attempt timed out.
+- Alignment confirmed after the tracker recovered: predicted vs. the wearer's own tracked right wrist **1.2 cm**.
+- Congruent mode, 113 s (headset log): clinician hand displayed in 86.7 % of rendered frames; every hidden frame
+  was "headset not tracking/worn", none was a tracker loss. Stream age at render median 2.6 ms (p95 26.4, max
+  42.1); PC read to Quest receipt median 0.6 ms (p95 1.4) via the RTT clock mapping; USB round trip 0.53 ms.
+  Displayed wrist step between frames median 1.2 mm, p99 22.9 mm, max 64.6 mm: occasional single-frame jumps
+  of several centimetres, cause (fast movement or tracker correction) not determined.
+- Tester's judgement: the clinician hand "looks right" (position and following).
+- Not yet tested: a second person wearing the tracker as clinician, reflected mode, the elbow-to-wrist stroke
+  (palm-to-displayed-forearm proximity needs the pilot body fit, which was not run), end-to-end motion-to-photon
+  latency, and behaviour over longer sessions.
