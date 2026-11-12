@@ -177,3 +177,47 @@ scene; the accepted pilot scene and pilot scripts are unchanged.
   during these strokes, so the improvement came from tracking holding up (stroke technique, hand position or
   conditions), not from the hold. The hold remains untested on the headset; a deliberate test (fully covering
   the resting hand for 1–2 s while the clinician hand is near) is still needed.
+
+## Pilot-ready session flow (2026-11-12, test app only)
+
+Built after the user asked for a demo/pilot setup driven from the PC. The accepted pilot scene keeps its own
+behaviour; every new behaviour below is switched on only by the clinician test scene.
+
+**Start (PC):** `probe-bin\ClinicianTrackerProbe.exe stream` (SteamVR in headset-less mode, Quest on USB). It
+opens the researcher dashboard at `http://localhost:47801` (this PC only) and keeps running if SteamVR restarts.
+
+**Researcher dashboard:** status cards for calibration, clinician hand (visible/hidden and why), participant
+number and recording, headset stage and affected arm, tracker/link (battery, data age, round trip) and touch
+display (arm hold, contact lift); controls for participant number, calibration, clinician-hand mode and the
+marker; messages from the headset; **Open headset view** starts scrcpy 5.0.1 (official Windows release,
+checksum-verified, in `Documents\VRMirrorTherapy\tools\scrcpy`, outside the repository) with the Unity adb, as a
+read-only, unrecorded USB mirror of the headset display.
+
+**Headset flow changes (test app):**
+- After the participant number, the participant chooses **which arm is affected**. They move and rest the OTHER
+  arm; it is mirrored onto the affected side (left affected = "right hand only" + right-to-left mirroring).
+- The researcher can set the participant number from the dashboard ("Show on headset" leaves Confirm to the
+  participant; "Show & confirm" starts the recording session).
+- The placeholder "Coming next: visual touch" page becomes **Clinician touch**: rest the unaffected forearm;
+  the clinician strokes it elbow to wrist; the stroke appears on the affected side.
+- The clinician hand is shown only during the mirror experience and the clinician-touch stage. The participant
+  never sees the alignment marker or researcher status text; only participant-calibration instructions.
+
+**Calibration in a pilot:**
+1. Full calibration once per tracker strap (researcher wears the headset and the strapped tracker): stores the
+   strap mount and a room alignment.
+2. During the participant's setup (e.g. hand colour), **Calibrate with participant**: the participant holds the
+   tracker in their moving hand for ~15 s. The room alignment is re-solved; the stored strap mount is reused;
+   alignment is confirmed from the fit. Then the tracker goes back on the clinician.
+3. After a tracker dropout the alignment returns to "check needed": confirm with a hand measurement, accept
+   without a check (logged as unmeasured), or calibrate with the participant again. A Quest recentre requires
+   calibration.
+
+**Brushing, not entering:** a display-only correction lifts the rigid clinician hand so its skin rests on top of
+the displayed participant forearm (rounded forearm model around the displayed top line, 3 mm clearance). The lift
+is logged per frame (`contactLiftMetres`) and shown on the dashboard. It does not sense contact.
+
+**Status:** headset build compiles and passes the self-checks (including the contact-lift check); the dashboard
+was verified serving status and commands with the headset app connected. Not yet verified on the headset:
+participant-held calibration, affected-arm flow, gating, contact lift, researcher-set participant number, and
+the scrcpy view on this PC.
