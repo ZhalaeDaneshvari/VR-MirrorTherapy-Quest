@@ -180,6 +180,7 @@ namespace QuestResearch.Clinician
         void Invalidate(string reason)
         {
             if(calibration==null&&Alignment==ClinicianAlignmentState.None)return;
+            if(Alignment==ClinicianAlignmentState.Invalid&&alignmentNote==reason)return;// already reported
             Alignment=ClinicianAlignmentState.Invalid;alignmentNote=reason;Reply(reason);
         }
 
@@ -202,7 +203,18 @@ namespace QuestResearch.Clinician
             foreach(var o in owned)if(o!=null)Destroy(o);
         }
         void OnConnection(bool connected){if(connected)StartRecording();else{Record("link_disconnected","");StopRecording("link-disconnected");}}
-        void OriginChanged(XRInputSubsystem _){Invalidate("Quest tracking origin changed (recentre/boundary); recalibrate (C).");}
+        void OriginChanged(XRInputSubsystem _)
+        {
+            // Putting the headset on can move the Quest origin. Samples from before the change are in another frame,
+            // so a running calibration starts collecting again instead of being cancelled; a finished one is invalid.
+            if(Alignment==ClinicianAlignmentState.Calibrating)
+            {
+                samples.Clear();calibrationStart=Now;firstSampleAt=-1;lastSampleAt=-1;usableSeconds=0;lastCalibrationTicks=0;
+                Record("calibration_restarted","Quest tracking origin changed");link.Send("L,Quest origin changed: calibration samples restarted.");
+                return;
+            }
+            Invalidate("Quest tracking origin changed (recentre/boundary); recalibrate (C).");
+        }
         void HookOrigin()
         {
             if(originHooked)return;SubsystemManager.GetSubsystems(inputs);if(inputs.Count==0)return;
