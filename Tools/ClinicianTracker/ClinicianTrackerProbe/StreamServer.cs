@@ -19,7 +19,7 @@ namespace QuestResearch.ClinicianTracker
     // Sending never blocks tracker polling: a bounded queue drops pose frames (counted) if the Quest stalls.
     public sealed class StreamServer:IDisposable
     {
-        readonly TcpListener listener;readonly string header;readonly Stopwatch clock;
+        readonly TcpListener listener;string header;readonly Stopwatch clock;
         readonly BlockingCollection<string> outgoing=new BlockingCollection<string>(512);
         readonly Thread acceptThread,writeThread;volatile bool stopping;
         TcpClient client;StreamWriter writer;readonly object gate=new object();
@@ -46,6 +46,8 @@ namespace QuestResearch.ClinicianTracker
             if(outgoing.TryAdd(line))Sent++;else Dropped++;
         }
         public void Command(string name){if(ClientConnected)outgoing.TryAdd("C,"+name);}
+        // New tracker identity (e.g. after a SteamVR restart): re-announce it to a connected Quest.
+        public void SetHeader(string line){lock(gate){header=line;if(client!=null)outgoing.TryAdd(line);}}
         void Accept()
         {
             while(!stopping)

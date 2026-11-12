@@ -104,9 +104,10 @@ function pill(id,cls,text){$(id).className='pill '+cls;$(id).textContent=text}
 function render(s){
   const q=s.quest, fresh=s.headsetConnected&&q&&s.questAgeMs>=0&&s.questAgeMs<2000;
   pill('pPc','ok','PC stream on');
-  pill('pTracker',s.pc.valid?'ok':'bad',s.pc.valid?'Tracker tracking':'Tracker '+(s.pc.tracker||'missing'));
+  const steamOk=s.pc.steamvr==='running';
+  pill('pTracker',steamOk&&s.pc.valid?'ok':'bad',!steamOk?(s.pc.steamvr||'SteamVR not running'):s.pc.valid?'Tracker tracking':'Tracker '+(s.pc.tracker||'missing'));
   pill('pLink',fresh?'ok':s.headsetConnected?'warn':'bad',fresh?'Headset connected':s.headsetConnected?'Headset paused (not worn?)':'Headset app not connected');
-  set('Trk',s.pc.valid?'ok':'bad',s.pc.valid?'Tracking':'Not tracking',
+  set('Trk',steamOk&&s.pc.valid?'ok':'bad',!steamOk?(s.pc.steamvr||'SteamVR not running'):s.pc.valid?'Tracking':'Not tracking',
     (s.pc.serial||'')+(s.pc.battery>=0?' · battery '+s.pc.battery+'%':'')+(q?' · data '+Math.round(q.ageMs)+' ms old, RTT '+q.rttMs.toFixed(1)+' ms':''));
   if(!q){['Cal','Hand','Part','Stage','Hold'].forEach(c=>set(c,'idle','–','Waiting for the headset app'));return}
   if(q.calibrating)set('Cal','warn','Calibrating… '+Math.ceil(q.calibrationSecondsLeft)+' s',(q.calibrationHand?'Using the '+q.calibrationHand+' hand · ':'')+q.samples+' samples');
