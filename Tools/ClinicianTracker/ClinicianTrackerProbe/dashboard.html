@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Researcher View</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--ink:#1c2330;--muted:#5b6676;--line:#dce1e8;--accent:#2457c5;--accent-ink:#fff;
+--ok:#16733f;--okbg:#e3f4ea;--warn:#8a5a00;--warnbg:#fff3d1;--bad:#b42318;--badbg:#fde7e5;--idle:#5b6676;--idlebg:#edf0f4}
+@media (prefers-color-scheme:dark){:root{--bg:#11151b;--card:#1a2028;--ink:#e5e9ef;--muted:#9aa4b2;--line:#2b343f;--accent:#7ea3ff;--accent-ink:#0d1320;
+--ok:#63d394;--okbg:#14301f;--warn:#f1c453;--warnbg:#382c0f;--bad:#ff8f86;--badbg:#3b1715;--idle:#9aa4b2;--idlebg:#222a34}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--line);background:var(--card)}
+h1{font-size:18px;margin:0}
+main{padding:16px 20px;max-width:1280px;margin:0 auto}
+.pills{display:flex;gap:8px;flex-wrap:wrap}
+.pill{padding:4px 10px;border-radius:999px;font-size:13px;font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.card h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+.big{font-size:20px;font-weight:700;margin:2px 0 4px}
+.sub{color:var(--muted);font-size:13px;min-height:18px;overflow-wrap:anywhere}
+.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}.idle{color:var(--idle)}
+.pill.ok{background:var(--okbg)}.pill.warn{background:var(--warnbg)}.pill.bad{background:var(--badbg)}.pill.idle{background:var(--idlebg)}
+.card.ok{border-left:5px solid var(--ok)}.card.warn{border-left:5px solid var(--warn)}.card.bad{border-left:5px solid var(--bad)}.card.idle{border-left:5px solid var(--line)}
+section{margin-top:16px}
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
+button,select{font:inherit;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 12px;cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button.on{outline:3px solid var(--accent);outline-offset:-3px;font-weight:700}
+button:disabled{opacity:.45;cursor:not-allowed}
+.hint{color:var(--muted);font-size:13px;margin-top:6px}
+ol{margin:6px 0 0;padding-left:20px}ol li{margin:3px 0}
+#log{font:12.5px/1.5 ui-monospace,Consolas,monospace;max-height:260px;overflow:auto;white-space:pre-wrap;margin:0}
+#toast{position:fixed;right:16px;bottom:16px;max-width:420px;padding:10px 14px;border-radius:10px;background:var(--ink);color:var(--bg);opacity:0;transition:opacity .2s}
+@media (max-width:600px){main,header{padding-left:16px;padding-right:16px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Mirror therapy &mdash; researcher view</h1>
+  <div class="pills"><span id="pTracker" class="pill idle">Tracker</span><span id="pLink" class="pill idle">Headset</span><span id="pPc" class="pill idle">PC stream</span></div>
+</header>
+<main>
+  <div class="grid">
+    <div class="card idle" id="cCal"><h2>Calibration</h2><div class="big" id="calBig">&ndash;</div><div class="sub" id="calSub"></div></div>
+    <div class="card idle" id="cHand"><h2>Clinician hand</h2><div class="big" id="handBig">&ndash;</div><div class="sub" id="handSub"></div></div>
+    <div class="card idle" id="cPart"><h2>Participant</h2><div class="big" id="partBig">&ndash;</div><div class="sub" id="partSub"></div></div>
+    <div class="card idle" id="cStage"><h2>Headset stage</h2><div class="big" id="stageBig">&ndash;</div><div class="sub" id="stageSub"></div></div>
+    <div class="card idle" id="cTrk"><h2>Tracker &amp; link</h2><div class="big" id="trkBig">&ndash;</div><div class="sub" id="trkSub"></div></div>
+    <div class="card idle" id="cHold"><h2>Touch display</h2><div class="big" id="holdBig">&ndash;</div><div class="sub" id="holdSub"></div></div>
+  </div>
+
+  <section class="controls">
+    <div class="card"><h2>1 &middot; Participant number</h2>
+      <div class="row"><select id="pnum"></select>
+        <button class="primary" onclick="cmd('participant:'+val())">Show on headset</button>
+        <button onclick="cmd('participant-confirm:'+val())">Show &amp; confirm</button></div>
+      <div class="hint">The participant only sees this number and selects Confirm. Set it any time before they confirm, including while you are in Researcher mode.</div>
+    </div>
+    <div class="card"><h2>2 &middot; Calibration</h2>
+      <div class="row"><button class="primary" id="bCalP" onclick="cmd('calibrate-participant')">Calibrate with participant</button>
+        <button onclick="cmd('calibrate')">Full calibration (researcher)</button></div>
+      <div class="row"><button onclick="cmd('verify')">Confirm alignment</button><button onclick="cmd('trust')">Accept without check</button>
+        <button onclick="cmd('marker')" id="bMarker">Marker</button><button onclick="if(confirm('Clear the stored calibration?'))cmd('clear')">Clear</button></div>
+      <div class="hint" id="calHint">Normally calibrate in the headset's Researcher mode. "Calibrate with participant" is the fallback: they hold the tracker in their moving hand for ~15 s.</div>
+    </div>
+    <div class="card"><h2>3 &middot; Clinician hand</h2>
+      <div class="row"><button id="mOff" onclick="cmd('mode-off')">Off</button><button id="mRef" onclick="cmd('mode-reflected')">Mirrored</button><button id="mCon" onclick="cmd('mode-congruent')">Same side</button></div>
+      <div class="hint">Mirrored: touching the unaffected arm appears on the affected side. Hidden until the mirror experience and clinician-touch stages.</div>
+    </div>
+    <div class="card"><h2>Participant's view</h2>
+      <div class="row"><button class="primary" onclick="openView()">Open headset view</button></div>
+      <div class="hint">Opens a live window of what the headset shows (USB, read-only, both eyes, not recorded). Close the window to stop.</div>
+    </div>
+  </section>
+
+  <section class="controls">
+    <div class="card"><h2>Pilot session steps</h2><ol>
+      <li>Researcher puts on the headset and chooses <i>Researcher</i>. With the tracker strapped on the hand as the clinician wears it: <i>Calibrate tracker</i>, move that hand slowly ~15 s, then <i>Confirm alignment</i> with the hand in view, then <i>Done</i>.</li>
+      <li>Choose the participant number here and click <i>Show on headset</i>. Set the clinician hand to <i>Mirrored</i>.</li>
+      <li>Strap the tracker on the clinician. Hand the headset to the participant: they choose <i>Participant</i>, confirm their number and choose their affected arm.</li>
+      <li>Watch the Calibration card: it should stay green through the handover. If it turns amber or red, use <i>Accept without check</i> (logged) or <i>Calibrate with participant</i>.</li>
+      <li>The clinician hand appears only in the mirror experience and the clinician-touch stage.</li>
+      <li>At <i>Clinician touch</i>: stroke the unaffected forearm from elbow to wrist.</li></ol></div>
+    <div class="card"><h2>Messages from the headset</h2><pre id="log"></pre></div>
+  </section>
+</main>
+<div id="toast"></div>
+<script>
+const $=id=>document.getElementById(id);
+const stages={ModeSelect:"Start screen",Researcher:"Researcher setup",Welcome:"Welcome",Participant:"Participant number",HandSetup:"Affected arm",RecordingError:"Recording problem",SkinTone:"Hand colour",Calibration:"Get comfortable",
+  Aligning:"Aligning",Table:"Table setup",SurfaceCapture:"Table setup",SurfaceTools:"Table setup",HeightEntry:"Table height",Fit:"Fit check",Ready:"Ready",
+  Comfort:"Comfort check",MirrorIntro:"Mirror intro",FutureTouch:"Clinician touch",Finished:"Finished",Settings:"Paused"};
+for(let n=1;n<=20;n++){const o=document.createElement('option');o.value=n;o.textContent='P'+String(n).padStart(2,'0');$('pnum').appendChild(o)}
+const val=()=>$('pnum').value;
+function toast(t){const e=$('toast');e.textContent=t;e.style.opacity=1;clearTimeout(toast.h);toast.h=setTimeout(()=>e.style.opacity=0,3500)}
+async function cmd(c){try{const r=await fetch('/cmd',{method:'POST',body:c});toast(await r.text())}catch(e){toast('PC probe not reachable')}}
+async function openView(){try{const r=await fetch('/view',{method:'POST'});toast(await r.text())}catch(e){toast('PC probe not reachable')}}
+function set(card,cls,big,sub){$('c'+card).className='card '+cls;const b=$(card.toLowerCase()+'Big');b.textContent=big;b.className='big '+cls;$(card.toLowerCase()+'Sub').textContent=sub||''}
+function pill(id,cls,text){$(id).className='pill '+cls;$(id).textContent=text}
+function render(s){
+  const q=s.quest, fresh=s.headsetConnected&&q&&s.questAgeMs>=0&&s.questAgeMs<2000;
+  pill('pPc','ok','PC stream on');
+  const steamOk=s.pc.steamvr==='running';
+  pill('pTracker',steamOk&&s.pc.valid?'ok':'bad',!steamOk?(s.pc.steamvr||'SteamVR not running'):s.pc.valid?'Tracker tracking':'Tracker '+(s.pc.tracker||'missing'));
+  pill('pLink',fresh?'ok':s.headsetConnected?'warn':'bad',fresh?'Headset connected':s.headsetConnected?'Headset paused (not worn?)':'Headset app not connected');
+  set('Trk',steamOk&&s.pc.valid?'ok':'bad',!steamOk?(s.pc.steamvr||'SteamVR not running'):s.pc.valid?'Tracking':'Not tracking',
+    (s.pc.serial||'')+(s.pc.battery>=0?' · battery '+s.pc.battery+'%':'')+(q?' · data '+Math.round(q.ageMs)+' ms old, RTT '+q.rttMs.toFixed(1)+' ms':''));
+  if(!q){['Cal','Hand','Part','Stage','Hold'].forEach(c=>set(c,'idle','–','Waiting for the headset app'));return}
+  if(q.calibrating)set('Cal','warn','Calibrating… '+Math.ceil(q.calibrationSecondsLeft)+' s',(q.calibrationHand?'Using the '+q.calibrationHand+' hand · ':'')+q.samples+' samples');
+  else if(q.alignment==='Verified')set('Cal','ok','Ready',(q.calibrationKind==='participant-alignment'?'Aligned with participant':'Full calibration')+(q.residualCm>=0?' · fit '+q.residualCm.toFixed(1)+' cm':'')
+    +(q.originShiftCm>0?' · carried over a '+q.originShiftCm.toFixed(1)+' cm headset origin shift':'')+(q.stageValid?'':' · not anchored to the room boundary'));
+  else if(q.alignment==='Unverified')set('Cal','warn','Check needed',q.note);
+  else set('Cal','bad',q.alignment==='Invalid'?'Needs calibration':'Not calibrated',q.note);
+  $('bCalP').disabled=!q.mountStored;$('calHint').textContent=q.mountStored?'Normally calibrate in the headset\'s Researcher mode. "Calibrate with participant" is the fallback: they hold the tracker in their moving hand for ~15 s.'
+    :'No strap calibration stored for this tracker yet: do the full calibration (step 1 below) first.';
+  $('bMarker').classList.toggle('on',q.marker);
+  ['mOff','mRef','mCon'].forEach((id,i)=>$(id).classList.toggle('on',q.mode===['Off','Reflected','Congruent'][i]));
+  set('Hand',q.shown?'ok':'idle',q.shown?'Visible to participant':'Hidden',q.shown?(q.mode==='Reflected'?'Mirrored':'Same side')+(q.palmCm>=0?' · palm '+q.palmCm.toFixed(1)+' cm from forearm':''):q.hidden);
+  set('Part',q.participantConfirmed?'ok':'warn',q.participantConfirmed?q.participant+' · recording':'P'+String(q.selectedParticipant).padStart(2,'0')+' selected',
+    q.participantConfirmed?'Session saving on the headset':'Not confirmed yet');
+  const st=q.stage==='Running'?(q.mirror?'Mirror experience':'Familiarisation'):(stages[q.stage]||q.stage);
+  set('Stage',q.touchStage?'ok':'idle',st,'Affected arm: '+(q.affected==='left'?'LEFT':q.affected==='right'?'RIGHT':q.affected==='none'?'none (both hands)':'not chosen yet')
+    +(q.userPresent?'':' · headset not worn'));
+  const held=q.holdLeft?'left':q.holdRight?'right':'';
+  set('Hold',held?'warn':'idle',held?'Holding '+held+' arm':q.liftCm>0.05?'Resting on forearm':'Normal',
+    (held?'Participant hand occluded; showing last resting pose. ':'')+(q.liftCm>0.05?'Clinician hand lifted '+q.liftCm.toFixed(1)+' cm onto the forearm surface':''));
+}
+function renderLog(m){$('log').textContent=m.slice().reverse().map(x=>x.t+'  '+x.text).join('\n')}
+async function poll(){try{const r=await fetch('/status',{cache:'no-store'});const s=await r.json();render(s);renderLog(s.messages||[])}
+  catch(e){pill('pPc','bad','PC stream stopped');}setTimeout(poll,300)}
+poll();
+</script>
+</body>
+</html>

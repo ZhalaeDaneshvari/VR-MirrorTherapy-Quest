@@ -13,6 +13,14 @@ namespace QuestResearch.Embodiment
         readonly float[] upperLength=new float[2],lowerLength=new float[2];
         public Vector2 FittedLengths(int side)=>HasFit?new Vector2(upperLength[side],lowerLength[side]):Vector2.zero;
         public void ClearFit(){HasFit=false;}
+        // Optional reach slack, 0 by default: the pilot withholds every pose the fixed-length arm cannot reach.
+        // The clinician test build sets it only during the touch stage, where the participant holds the forearm out
+        // nearly straight and the wrist sits within millimetres of full reach. A slightly unreachable wrist (at most
+        // ReachSlack) then moves the estimated shoulder towards the tracked wrist, as the shoulder girdle does in a
+        // forward reach; segment lengths and the tracked wrist are unchanged. The shift is reported per displayed side.
+        public float ReachSlack{get;set;}
+        readonly float[] shoulderShift=new float[2];readonly int[] shiftFrame=new int[2];
+        public float ShoulderShift(int displayedSide)=>shiftFrame[displayedSide]==Time.frameCount?shoulderShift[displayedSide]:0;
         public bool CaptureFit()
         {
             HasFit=false;
@@ -38,7 +46,11 @@ namespace QuestResearch.Embodiment
             Vector3 pole=elbow-shoulder;
             // Preserve estimated segment lengths and tracked wrist. Never stretch a mesh
             // across disagreeing body/hand providers. Unreachable poses are withheld.
-            if(!SeatedArmMath.TryElbow(shoulder,wrist,upperLength[side],lowerLength[side],pole,out elbow))return false;
+            if(!SeatedArmMath.TryElbow(shoulder,wrist,upperLength[side],lowerLength[side],pole,out elbow))
+            {
+                if(!TrySlackElbow(ref shoulder,wrist,upperLength[side],lowerLength[side],pole,ReachSlack,out elbow,out float shift))return false;
+                int displayed=hand.Reflected?1-side:side;shoulderShift[displayed]=shift;shiftFrame[displayed]=Time.frameCount;
+            }
             var p=setup.Parameters;
             if(setup.SurfacePreview&&TableContactMath.Inside(wrist,p)&&wrist.y>=p.tableHeight&&wrist.y<p.tableHeight+.10f)
             {
@@ -47,6 +59,15 @@ namespace QuestResearch.Embodiment
                 if(SeatedArmMath.TrySupportedElbow(shoulder,wrist,upperLength[side],lowerLength[side],pole,p.tableHeight+.025f,weight,out var supported))elbow=supported;
             }
             return true;
+        }
+        // Moves the shoulder at most `slack` along the shoulder->wrist line so a wrist just beyond full reach becomes reachable.
+        public static bool TrySlackElbow(ref Vector3 shoulder,Vector3 wrist,float upper,float lower,Vector3 pole,float slack,out Vector3 elbow,out float shift)
+        {
+            elbow=shoulder;shift=Vector3.Distance(shoulder,wrist)-(upper+lower-.004f);
+            if(slack<=0||shift<=0||shift>slack){shift=0;return false;}
+            var moved=shoulder+(wrist-shoulder).normalized*shift;
+            if(!SeatedArmMath.TryElbow(moved,wrist,upper,lower,pole,out elbow)){shift=0;return false;}
+            shoulder=moved;return true;
         }
         public string Status => source.Status+" / "+source.Fidelity;
         public void Configure(BodyTrackingProbe input,SeatedSetup alignment,Transform space)
