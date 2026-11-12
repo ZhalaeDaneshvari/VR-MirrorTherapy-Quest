@@ -256,3 +256,15 @@ Flow: Researcher mode in the headset → calibrate → confirm → Done → head
 - **Bug found and fixed:** the contact correction lifted the clinician hand by ~7 cm in 29 frames while the palm
   was 8–10 cm from the displayed forearm (hand beside/under the arm, not on top). It now corrects only skin within
   2.5 cm below the forearm top surface; deeper points are ignored. Self-check extended.
+
+### 2026-11-12: second researcher-mode run (shallow-contact build)
+
+- App start: the stored calibration was re-expressed across the new session's origin (shifts up to 90 cm / 153°,
+  as expected between app sessions) and left "unverified" until the researcher confirmed it.
+- Researcher-mode calibration accepted (1.2 cm RMS, 8.8 cm mount) and confirmed at **0.8 cm** vs the researcher's
+  wrist. Handover: origin shifts 8.4 cm/19.3°, 6.2 cm/−16.6°, 2.0 cm/−3.7°, all carried over; alignment stayed
+  confirmed and the clinician hand showed in participant mode (~65 s visible) without recalibration.
+- The participant number was changed from the dashboard to P16 before confirmation and shown/confirmed correctly.
+- The Clinician touch stage lasted 6 s and **no stroke was made**: the clinician wrist stayed still at 0.77 m for the
+  whole run (displayed, mirrored, ~50 cm from the displayed forearm). Contact lift and arm hold were therefore not
+  exercised; post-handover alignment accuracy was not measured.
