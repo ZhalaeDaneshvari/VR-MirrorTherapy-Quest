@@ -101,7 +101,8 @@ public static class ClinicianTrackerSetup
         var top=new Vector3[21];for(int k=0;k<21;k++)top[k]=new Vector3(0,.80f,.30f+k*.0125f);
         float inside=ClinicianTrackerFeature.Penetration(new Vector3(0,.79f,.42f),top);
         if(Mathf.Abs(inside-.013f)>.0005f||ClinicianTrackerFeature.Penetration(new Vector3(0,.81f,.42f),top)!=0
-            ||ClinicianTrackerFeature.Penetration(new Vector3(.05f,.79f,.42f),top)!=0||ClinicianTrackerFeature.Penetration(new Vector3(0,.79f,.60f),top)!=0)
+            ||ClinicianTrackerFeature.Penetration(new Vector3(.05f,.79f,.42f),top)!=0||ClinicianTrackerFeature.Penetration(new Vector3(0,.79f,.60f),top)!=0
+            ||ClinicianTrackerFeature.Penetration(new Vector3(0,.75f,.42f),top)!=0)// 5 cm deep: beside/under the arm, not brushing
             throw new BuildFailedException("Forearm contact correction check failed (inside lift "+inside+").");
         // Carry-over: after a Quest origin shift D, a calibrated tracker pose must map to D applied to its old place.
         var carried=new ClinicianCalibration{yawDegrees=40,translation=new Vector3(.2f,0,.5f),stageValid=true,stagePosition=new Vector3(1,0,-2),stageRotation=Quaternion.Euler(0,15,0)};

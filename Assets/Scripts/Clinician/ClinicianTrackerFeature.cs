@@ -471,7 +471,7 @@ namespace QuestResearch.Clinician
         }
         // Display correction only: the participant forearm is approximated by its displayed top line (elbow to wrist)
         // with a rounded cross-section; returns how far the clinician hand must rise so no skin vertex is inside it.
-        const int TopSamples=20;const float LiftSearch=.15f,ForearmRadius=.035f,ContactClearance=.003f;
+        const int TopSamples=20;const float LiftSearch=.15f,ForearmRadius=.035f,ContactClearance=.003f,MaxSink=.025f;
         readonly Vector3[][] topLine={new Vector3[TopSamples+1],new Vector3[TopSamples+1]};readonly bool[] topValid=new bool[2];
         readonly List<Vector3> bakedVertices=new List<Vector3>();Mesh bakedMesh;
         float ContactLift(SkinnedMeshRenderer[] renderers)
@@ -495,6 +495,9 @@ namespace QuestResearch.Clinician
             float t=along/length*(line.Length-1);int k=Mathf.Min((int)t,line.Length-2);float top=Mathf.Lerp(line[k].y,line[k+1].y,t-k);
             if(v.y<top-2*ForearmRadius)return 0;// under the arm, not inside it
             float surface=top-(ForearmRadius-Mathf.Sqrt(ForearmRadius*ForearmRadius-lateral*lateral));
+            // Only skin just below the top surface is "brushing too deep"; deeper points mean the hand is beside or under
+            // the displayed arm (or the fit differs), which must not pop the hand on top.
+            if(v.y<surface-MaxSink)return 0;
             return Mathf.Max(0,surface+ContactClearance-v.y);
         }
         string ParticipantCalibrationText(bool ok)

@@ -238,3 +238,21 @@ Headset run 16:52–16:54 (dashboard log):
   the clinician-touch stage, and the headset-view window.
 - Implication for pilots: any headset removal means recalibrating with the participant before the mirror stage;
   the dashboard shows this as "Needs calibration".
+
+### 2026-11-12: researcher mode, handover and participant run
+
+Flow: Researcher mode in the headset → calibrate → confirm → Done → headset off/on (handover) → Participant mode.
+- Researcher-mode calibration accepted (1.4 cm RMS, 8.1 cm mount, 940 samples), **anchored to the room boundary**
+  (the Meta stage pose was available), confirmed at 1.5 cm vs the researcher's own wrist.
+- **Handover kept the calibration:** putting the headset back on moved the Quest origin three times within ~3 s
+  (7.1 cm/7.3°, 3.5 cm/−6.1°, 2.0 cm/1.7°); each time the alignment followed the room boundary and stayed
+  confirmed. In participant mode the **clinician hand appeared in the mirror experience without recalibrating**.
+  (Its accuracy after the handover was not measured: the participant's hands were not compared with the tracker.)
+- Participant saw only the researcher-set P20 and confirmed it; a later dashboard attempt to change the number was
+  correctly refused after confirmation. Affected arm "right" recorded.
+- The stroke was done during the mirror *activity*, where the pilot itself pauses ("tracking interrupted") when
+  the moving hand is occluded; the clinician hand is hidden while paused. Strokes belong in the Clinician touch
+  stage, which the run did not reach (headset removed at 17:09:42).
+- **Bug found and fixed:** the contact correction lifted the clinician hand by ~7 cm in 29 frames while the palm
+  was 8–10 cm from the displayed forearm (hand beside/under the arm, not on top). It now corrects only skin within
+  2.5 cm below the forearm top surface; deeper points are ignored. Self-check extended.
