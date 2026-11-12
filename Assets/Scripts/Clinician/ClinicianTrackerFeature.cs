@@ -45,6 +45,9 @@ namespace QuestResearch.Clinician
         // the mirror and touch stages, and the head-locked text is used only to instruct the participant while calibrating.
         [SerializeField] PilotWalkthrough pilot;
         public void ConfigurePilot(PilotWalkthrough p){pilot=p;}
+        // Touch stage only: the participant's forearm is held out nearly straight, at the fixed-length arm's full reach.
+        // Allow the displayed shoulder to follow the wrist this far (BodyArmTargets.ReachSlack) so the arm is not withheld.
+        [SerializeField] float participantReachSlack=.03f;BodyArmTargets participantArms;
         bool participantCalibration;int calibrationSide=1;float contactLift;
         SkinnedMeshRenderer[][] meshRenderers=new SkinnedMeshRenderer[2][];
         bool InTouchStage=>pilot==null||(pilot.CurrentPage==PilotWalkthrough.Page.Running&&pilot.MirrorActivity)||pilot.CurrentPage==PilotWalkthrough.Page.FutureTouch;
@@ -87,6 +90,7 @@ namespace QuestResearch.Clinician
                 for(int i=0;i<joints.Length;i++)templates[side][i]=new Pose(inverse*(joints[i].position-wrist.position),inverse*joints[i].rotation);
                 meshes[side]=mesh;meshRenderers[side]=mesh.GetComponentsInChildren<SkinnedMeshRenderer>(true);mesh.Apply(hidden,trackingSpace,false);
             }
+            participantArms=avatar!=null?avatar.GetComponent<BodyArmTargets>():null;
             if(pilot!=null)
             {
                 pilot.AffectedArmPrompt=true;pilot.ClinicianTouchStage=true;pilot.ResearcherModeEnabled=true;
@@ -342,6 +346,7 @@ namespace QuestResearch.Clinician
         void Render()
         {
             if(meshes[0]==null)return;HookOrigin();
+            if(participantArms!=null)participantArms.ReachSlack=pilot!=null&&InTouchStage?participantReachSlack:0;
             double now=Now;bool ok=Current(out var frame,out double age);
             bool headTracked=setup!=null&&setup.HeadTracked,present=OpenXRUtility.IsUserPresent,bodyAligned=setup!=null&&setup.Aligned;
             // The tracker's frame may move when it relocalises after a loss, so any unobserved gap needs a fresh check.
@@ -563,7 +568,7 @@ namespace QuestResearch.Clinician
             public string questConvention="calibrated and displayed poses: Quest XR-origin tracking space, Unity left-handed axes, metres.";
             public string timing="questTicks/receivedTicks: Quest Stopwatch. pcTicks: PC Stopwatch at the probe read. pcSampleAgeAtReceiptMs uses the lowest-RTT clock mapping; -1 before the first sync.";
             public string scope="Clinician tracker only. Participant movement is recorded separately by the pilot recorder. Proximity values are display geometry, not contact.";
-            public string participantArmHold;
+            public string participantArmHold,participantReachSlack;
         }
         [Serializable] sealed class SampleRecord
         {
@@ -577,6 +582,7 @@ namespace QuestResearch.Clinician
             public string proximitySide;public float proximityProgress,proximityMetres;
             public bool heldLeft,heldRight;// participant displayed arm shown from a held pose (not tracked) this frame
             public float contactLiftMetres;// display-only lift keeping the clinician skin on top of the displayed forearm
+            public Vector2 participantShoulderShiftMetres;// display-only shoulder move (left, right displayed arm) that kept a straight arm drawn
             public string pilotStage;public bool touchStage;
         }
         [Serializable] sealed class EventRecord{public string type="event",kind,message,utc,alignment,mode;public long questTicks;}
@@ -591,7 +597,9 @@ namespace QuestResearch.Clinician
                 writer=new MovementSessionWriter(sessionFolder,JsonUtility.ToJson(new Metadata{appVersion=Application.identifier+" "+Application.version,unityVersion=Application.unityVersion,
                     device=SystemInfo.deviceModel,startUtc=DateTime.UtcNow.ToString("O"),stopwatchFrequency=Stopwatch.Frequency,staleSeconds=staleSeconds,lossGraceSeconds=lossGraceSeconds,
                     participantArmHold=hold==null?"not present":F("Test build only: when participant hand tracking is lost while the displayed clinician palm is within {0:0} cm and the arm was resting, the last tracked displayed pose is held for at most {1:0.#} s (heldLeft/heldRight, participant_arm_hold_* events). Physical hand data is not altered; the pilot recorder's mapped/displayed records show the held pose during holds.",
-                        hold.ClinicianRadius*100,hold.MaxHoldSeconds)},true));
+                        hold.ClinicianRadius*100,hold.MaxHoldSeconds),
+                    participantReachSlack=participantArms==null?"not present":F("Test build only, clinician mirror/touch stages: when the participant's tracked wrist is up to {0:0.#} cm beyond the fixed-length displayed arm's reach (forearm held out straight), the displayed shoulder moves that far towards the wrist instead of the arm being hidden (participantShoulderShiftMetres). Segment lengths and the tracked wrist are unchanged; the pilot recorder's fittedArmBodyPoints show the moved shoulder.",
+                        participantReachSlack*100)},true));
                 Record("recording_started",sessionFolder);
                 if(calibration!=null)RecordCalibration("calibration_in_use",alignmentNote);
             }
@@ -617,6 +625,7 @@ namespace QuestResearch.Clinician
             r.headTracked=headTracked;r.userPresent=present;r.bodyAligned=bodyAligned;
             r.proximitySide=proximitySide>=0?((PhysicalHand)proximitySide).ToString():"";r.proximityProgress=progress;r.proximityMetres=proximitySide>=0?proximity:-1;
             r.heldLeft=hold!=null&&hold.Held(0);r.heldRight=hold!=null&&hold.Held(1);
+            r.participantShoulderShiftMetres=participantArms==null?Vector2.zero:new Vector2(participantArms.ShoulderShift(0),participantArms.ShoulderShift(1));
             r.contactLiftMetres=contactLift;r.pilotStage=pilot==null?"":pilot.CurrentPage.ToString();r.touchStage=InTouchStage;
             Append(JsonUtility.ToJson(r));
         }

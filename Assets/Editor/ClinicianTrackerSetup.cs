@@ -115,7 +115,19 @@ public static class ClinicianTrackerSetup
             throw new BuildFailedException("Calibration carry-over does not follow the origin shift.");
         var tilted=new Pose(movedStage.position,Quaternion.Euler(8,0,0)*movedStage.rotation);
         if(carried.FollowStage(tilted,out _,out _))throw new BuildFailedException("Carry-over accepted a tilted shift.");
-        Debug.Log("[Clinician] Conversion, calibration recovery ("+message+"), sample gate, reflection, contact-lift and carry-over checks PASS.");
+        // Touch-stage reach slack: a wrist 1 cm past full reach stays drawn with fixed segment lengths and the tracked wrist;
+        // 5 cm past reach, or no slack (the pilot default), is still withheld.
+        {
+            float upper=.24f,lower=.22f;var shoulder=new Vector3(.2f,1f,-.1f);var pole=new Vector3(.3f,-.5f,.1f);
+            var wrist=shoulder+new Vector3(.1f,-.2f,1).normalized*(upper+lower+.01f);var moved=shoulder;
+            if(!BodyArmTargets.TrySlackElbow(ref moved,wrist,upper,lower,pole,.03f,out var bent,out float shift)
+                ||Mathf.Abs(Vector3.Distance(moved,bent)-upper)>1e-4f||Mathf.Abs(Vector3.Distance(bent,wrist)-lower)>1e-4f||shift>.0145f||Vector3.Distance(moved,shoulder)>shift+1e-5f)
+                throw new BuildFailedException("Reach slack did not keep a slightly over-reached arm with fixed lengths.");
+            var far=shoulder+(wrist-shoulder).normalized*(upper+lower+.05f);moved=shoulder;
+            if(BodyArmTargets.TrySlackElbow(ref moved,far,upper,lower,pole,.03f,out _,out _)||moved!=shoulder)throw new BuildFailedException("Reach slack accepted a 5 cm over-reach.");
+            if(BodyArmTargets.TrySlackElbow(ref moved,wrist,upper,lower,pole,0,out _,out _))throw new BuildFailedException("Reach slack active with slack 0 (pilot default).");
+        }
+        Debug.Log("[Clinician] Conversion, calibration recovery ("+message+"), sample gate, reflection, contact-lift, carry-over and reach-slack checks PASS.");
     }
 
     [MenuItem("Quest Prototype/Clinician Tracker (test)/Build Test APK")]

@@ -268,3 +268,49 @@ Flow: Researcher mode in the headset → calibrate → confirm → Done → head
 - The Clinician touch stage lasted 6 s and **no stroke was made**: the clinician wrist stayed still at 0.77 m for the
   whole run (displayed, mirrored, ~50 cm from the displayed forearm). Contact lift and arm hold were therefore not
   exercised; post-handover alignment accuracy was not measured.
+
+### 2026-11-12: participant P02 run (researcher mode → handover → participant mode → Clinician touch)
+
+The tester reported the whole flow worked, except that **the participant's mirrored arm disappeared during the
+clinician's touch**. Headset data (pilot recorder `MovementData/P02` joined with the clinician log on the Quest
+Stopwatch; both stay on the lab PC, not in the repository):
+- Clinician touch stage: 23 s, left arm moving, mirrored onto the right. The mirrored **hand** was visible in
+  673/684 frames; the arm hold started 6 times (clinician palm 11–13 cm away), each ending within 0.1–0.4 s when
+  hand tracking resumed.
+- The mirrored **arm** (not the hand) was missing in 238/684 frames (35 %), in 18 episodes of up to 1.5 s. In those
+  frames the hand was tracked (227/238) and body tracking was valid (fit valid, arm estimates valid, ~1 ms old).
+- **Cause:** for the stroke the participant held the forearm out nearly straight. The displayed arm uses fixed
+  segment lengths fitted during setup (P02: 24.2 + 21.7 cm), and the pilot hides any arm whose tracked wrist is
+  beyond that reach. Shoulder-to-wrist distance during the touch was a median 2.9 cm *inside* full reach when the
+  arm was shown and 0.3 cm *beyond* it when missing (191/227 beyond; 222/227 within 3 cm beyond). In the mirror
+  activity (bent arm) it stayed 3.9–15.8 cm inside reach and the arm was never missing. Hand tracking, body
+  tracking and the clinician hand were not the cause; the hold could not help because the hand was still tracked.
+
+**Fix (test build only):** `BodyArmTargets.ReachSlack` (0 by default, so the accepted pilot still withholds every
+unreachable arm). The clinician feature sets it to **3 cm** only in the clinician mirror/touch stages: a wrist up to
+3 cm beyond full reach moves the displayed shoulder that far towards the wrist (as the shoulder girdle protracts in
+a forward reach) instead of hiding the arm. Segment lengths and the tracked wrist are unchanged; larger over-reach
+is still hidden. Each frame's shift is logged (`participantShoulderShiftMetres` in the clinician log; the pilot
+recorder's `fittedArmBodyPoints` show the moved shoulder). Self-check added. On P02's data this would have kept the
+arm shown in about 222 of the 238 missing frames (estimate from recorded geometry, not a replay).
+
+### 2026-11-12: P06 runs with the reach-slack build
+
+Two short participant-mode runs (P06, right arm affected: left arm moved, mirrored onto the right).
+- **Run 1 (clinician hand off):** the app had restarted after the install, so the clinician-hand mode was Off
+  (the default) and the alignment was not confirmed. Clinician touch stage 22 s: mirrored arm shown 92 % (P02:
+  65 %). Of 52 missing frames, 43 were participant hand-tracking losses (no hold, since no clinician hand was
+  shown) and 9 had the wrist more than 5 cm beyond reach. The reach slack was used in 4 frames (≈2.9 cm).
+- **Run 2 (Mirrored, alignment confirmed in researcher mode):** Clinician touch stage 12 s, clinician hand shown,
+  contact lift up to 2.8 cm (its 2.5 cm + 3 mm cap), palm down to 4.4 cm from the displayed forearm. The mirrored
+  arm was shown in **353/370 frames (95 %)**; the hand in 370/370. The wrist was beyond the fixed-length reach in
+  237 of the shown frames (fitted forearm only 19.0 cm), so **without the slack the arm would have been missing in
+  about 64 % of the stroke**; the shoulder moved a median 1.4 cm (max 2.9 cm) in 231 frames. The 17 remaining
+  missing frames were 2.9–25 cm beyond reach (10 within 4 cm, 13 within 5 cm). No hand-tracking losses or holds.
+- **Alignment concern:** run 2 used the calibration saved in an earlier app session, re-expressed through the
+  room boundary across large origin changes (up to 131 cm / 165°) and then confirmed by the researcher at
+  **6.3 cm** predicted-vs-own-wrist (fresh calibrations confirmed at 0.8–1.5 cm). Confirmation records the
+  measured offset but has no threshold, so a 6 cm error was accepted; the large contact lift is consistent with
+  the clinician hand sitting lower than the real one. Recalibrating in researcher mode after an app restart is
+  advisable until a confirmation threshold is added. The tracker also lost tracking at the end of run 2
+  (alignment returned to "check needed", as designed).
