@@ -221,3 +221,20 @@ is logged per frame (`contactLiftMetres`) and shown on the dashboard. It does no
 was verified serving status and commands with the headset app connected. Not yet verified on the headset:
 participant-held calibration, affected-arm flow, gating, contact lift, researcher-set participant number, and
 the scrcpy view on this PC.
+
+### 2026-11-12: first pilot-flow dry run (one person)
+
+Setup from the dashboard before the headset run: mode Mirrored, participant P20, calibrate with participant.
+Headset run 16:52–16:54 (dashboard log):
+- Researcher-set participant number shown and confirmed on the headset; it stayed preselected after a restart.
+- **Participant calibration accepted** about 25 s after the command (fit 1.8 cm RMS, 975 samples, grip offset
+  8.3 cm; stored strap mount reused) and alignment marked confirmed.
+- Affected-arm choice recorded (left on the first pass, right on the second); stage and arm shown on the dashboard.
+- Clinician hand correctly hidden ("waiting for the mirror experience") through setup and familiarisation.
+- The headset came off at 16:53:11: the app paused, the pilot restarted from Welcome, and on putting it back on
+  the Quest tracking origin changed, which invalidated the alignment. No recalibration was run afterwards, so in
+  the mirror experience the clinician hand stayed hidden ("alignment invalid"); the run then paused and finished.
+- Not yet observed on the headset: the displayed clinician hand in the pilot flow, contact lift, the arm hold in
+  the clinician-touch stage, and the headset-view window.
+- Implication for pilots: any headset removal means recalibrating with the participant before the mirror stage;
+  the dashboard shows this as "Needs calibration".
