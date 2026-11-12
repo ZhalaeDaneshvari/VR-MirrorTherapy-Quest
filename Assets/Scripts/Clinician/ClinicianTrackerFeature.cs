@@ -87,7 +87,11 @@ namespace QuestResearch.Clinician
                 for(int i=0;i<joints.Length;i++)templates[side][i]=new Pose(inverse*(joints[i].position-wrist.position),inverse*joints[i].rotation);
                 meshes[side]=mesh;meshRenderers[side]=mesh.GetComponentsInChildren<SkinnedMeshRenderer>(true);mesh.Apply(hidden,trackingSpace,false);
             }
-            if(pilot!=null){pilot.AffectedArmPrompt=true;pilot.ClinicianTouchStage=true;}
+            if(pilot!=null)
+            {
+                pilot.AffectedArmPrompt=true;pilot.ClinicianTouchStage=true;pilot.ResearcherModeEnabled=true;
+                pilot.ResearcherStatus=ResearcherStatusText;pilot.ResearcherButton=ResearcherButtonLabel;pilot.ResearcherAction=ResearcherPress;
+            }
             sleeve=Primitive(PrimitiveType.Cylinder,"Clinician sleeve",cloth,new Vector3(.06f,.07f,.06f));
             marker=Primitive(PrimitiveType.Sphere,"Clinician tracker alignment marker",markerMaterial,Vector3.one*.02f);
             var stick=Primitive(PrimitiveType.Cube,"Marker forward (tracker -Z in OpenVR)",markerMaterial,new Vector3(.004f,.004f,.06f));
@@ -125,7 +129,7 @@ namespace QuestResearch.Clinician
                 case "trust":
                     // Researcher override after a tracker dropout, when no hand measurement is possible. Logged as unmeasured.
                     if(Alignment!=ClinicianAlignmentState.Unverified||calibration==null){Reply("Nothing to accept: "+alignmentNote);break;}
-                    Alignment=ClinicianAlignmentState.Verified;lastObserved=Now;alignmentNote="Alignment accepted by researcher without a measurement.";
+                    Alignment=ClinicianAlignmentState.Verified;lastObserved=Now;observedTicks=Stopwatch.GetTimestamp();alignmentNote="Alignment accepted by researcher without a measurement.";
                     RecordCalibration("alignment_accepted_without_measurement",alignmentNote);Reply(alignmentNote);break;
                 case "marker":markerOn=!markerOn;Reply("Alignment marker "+(markerOn?"on":"off")+".");break;
                 case "clear":
@@ -174,16 +178,16 @@ namespace QuestResearch.Clinician
                     // The solved offset is the participant's grip, not the clinician's strap: keep the stored strap mount.
                     result.mountPosition=calibration.mountPosition;result.mountRotation=calibration.mountRotation;
                     result.mountRevision=calibration.mountRevision??calibration.revision;result.kind="participant-alignment";
-                    calibration=result;Alignment=ClinicianAlignmentState.Verified;lastObserved=Now;
+                    calibration=result;Alignment=ClinicianAlignmentState.Verified;lastObserved=Now;observedTicks=Stopwatch.GetTimestamp();
                     alignmentNote="Aligned during participant setup: "+message+" (strap mount from "+result.mountRevision+").";
-                    Save();RecordCalibration("participant_alignment_accepted",message);
+                    StampStage(calibration);Save();RecordCalibration("participant_alignment_accepted",message);
                 }
                 else
                 {
                     result.kind="full";result.mountRevision=result.revision;
                     calibration=result;Alignment=ClinicianAlignmentState.Unverified;
                     alignmentNote="Calibrated: "+message+". Check the pink marker sits on the tracker, then press V.";
-                    Save();RecordCalibration("calibration_accepted",message);
+                    StampStage(calibration);Save();RecordCalibration("calibration_accepted",message);
                 }
             }
             else{Alignment=calibration!=null?ClinicianAlignmentState.Unverified:ClinicianAlignmentState.None;alignmentNote=message;RecordCalibration("calibration_rejected",message);}
@@ -208,7 +212,7 @@ namespace QuestResearch.Clinician
             if(evidence==null){evidenceSince=-1;return;}
             if(evidenceSince<0){evidenceSince=now;return;}
             if(now-evidenceSince<VerifySettle)return;
-            verifyRequestedAt=-1;Alignment=ClinicianAlignmentState.Verified;lastObserved=now;alignmentNote="Alignment confirmed: "+evidence;
+            verifyRequestedAt=-1;Alignment=ClinicianAlignmentState.Verified;lastObserved=now;observedTicks=Stopwatch.GetTimestamp();alignmentNote="Alignment confirmed: "+evidence;
             RecordCalibration("alignment_confirmed",evidence);Reply(alignmentNote);
         }
         // Measured offsets between the calibrated tracker and the wearer's own tracked hand (both Quest space).
@@ -263,8 +267,70 @@ namespace QuestResearch.Clinician
                 Record("calibration_restarted","Quest tracking origin changed");link.Send("L,Quest origin changed: calibration samples restarted.");
                 return;
             }
+            if(calibration!=null&&calibration.stageValid&&Alignment!=ClinicianAlignmentState.Invalid)
+            {Record("quest_origin_changed","following the room boundary origin");originChangePending=true;return;}
             Invalidate("Quest tracking origin changed (recentre/boundary); recalibrate (C).");
         }
+        // ---------- room-boundary carry-over ----------
+        bool originChangePending;float lastOriginShift;double stageMissingSince=-1;long observedTicks;
+        static bool TryStage(out Pose stage)
+        {
+            stage=Pose.identity;
+            try
+            {
+                if(!OVRPlugin.GetBoundaryConfigured())return false;
+                var p=OVRPlugin.GetTrackingTransformRelativePose(OVRPlugin.TrackingOrigin.Stage).ToOVRPose();
+                if(p.position==Vector3.zero&&p.orientation==Quaternion.identity)return false;// the API reports failure as identity
+                stage=new Pose(p.position,p.orientation);return true;
+            }
+            catch(Exception){return false;}
+        }
+        void StampStage(ClinicianCalibration c){c.stageValid=TryStage(out var s);c.stagePosition=s.position;c.stageRotation=s.rotation;}
+        // Re-express the alignment when the Quest origin moves relative to the room boundary. Both frames are gravity
+        // aligned, so only the yaw part of the shift is applied; a large tilt means something else changed.
+        void CarryOver(double now)
+        {
+            if(calibration==null||!calibration.stageValid||Alignment==ClinicianAlignmentState.Calibrating||Alignment==ClinicianAlignmentState.Invalid)return;
+            if(!TryStage(out var current))
+            {
+                if(stageMissingSince<0)stageMissingSince=now;
+                if(originChangePending&&now-stageMissingSince>2){originChangePending=false;Invalidate("Quest origin changed and the room boundary is unavailable; recalibrate.");}
+                return;
+            }
+            stageMissingSince=-1;
+            if(Vector3.Distance(current.position,calibration.stagePosition)<.001f&&Quaternion.Angle(current.rotation,calibration.stageRotation)<.1f){originChangePending=false;return;}
+            originChangePending=false;
+            if(!calibration.FollowStage(current,out float shift,out float yaw)){Invalidate("Quest origin changed with an unexpected tilt; recalibrate.");return;}
+            lastOriginShift=shift;Save();
+            string message=F("Quest origin moved {0:0.0} cm / {1:0.0} deg; calibration carried over via the room boundary.",shift*100,yaw);
+            RecordCalibration("calibration_carried_over",message);link.Send("L,"+message);
+        }
+        // ---------- researcher page (headset) ----------
+        string ResearcherStatusText()
+        {
+            bool ok=Current(out _,out _);
+            string trackerLine="Tracker: "+(!link.Connected?"PC link down":ok?"tracking":"NOT tracking (point it at the room)");
+            string calibrationLine=Alignment switch
+            {
+                ClinicianAlignmentState.Calibrating=>F("Calibrating: move your {0} hand slowly,\nturning and tilting it ({1:0} s left)",link.ClinicianHand,Math.Max(0,calibrationSeconds-usableSeconds)),
+                ClinicianAlignmentState.Verified=>"Calibration: READY"+(calibration!=null?F(" (fit {0:0.0} cm)",calibration.residualRmsMetres*100):""),
+                ClinicianAlignmentState.Unverified=>"Calibration: hold your "+link.ClinicianHand+" hand in view,\nthen select Confirm",
+                _=>"Calibration needed: strap the tracker on your\n"+link.ClinicianHand+" hand as the clinician wears it, then Calibrate"
+            };
+            return trackerLine+"\n"+calibrationLine+(Alignment==ClinicianAlignmentState.Verified?"\nSelect Done, then hand over the headset.":"");
+        }
+        string ResearcherButtonLabel(int index)=>index switch
+        {
+            0=>Alignment==ClinicianAlignmentState.Calibrating?"":Alignment==ClinicianAlignmentState.Verified?"Recalibrate":"Calibrate tracker",
+            1=>Alignment==ClinicianAlignmentState.Unverified?"Confirm alignment":"",
+            _=>""
+        };
+        void ResearcherPress(int index)
+        {
+            if(index==0&&Alignment!=ClinicianAlignmentState.Calibrating)BeginCalibration(false);
+            if(index==1&&Alignment==ClinicianAlignmentState.Unverified)Verify();
+        }
+        bool OnResearcherPage=>pilot!=null&&pilot.CurrentPage==PilotWalkthrough.Page.Researcher;
         void HookOrigin()
         {
             if(originHooked)return;SubsystemManager.GetSubsystems(inputs);if(inputs.Count==0)return;
@@ -281,12 +347,13 @@ namespace QuestResearch.Clinician
             // The tracker's frame may move when it relocalises after a loss, so any unobserved gap needs a fresh check.
             if(ok)
             {
-                if(Alignment==ClinicianAlignmentState.Verified&&now-lastObserved>lossGraceSeconds)
+                if(Alignment==ClinicianAlignmentState.Verified&&link.InterruptionTicks>observedTicks)
                 {Alignment=ClinicianAlignmentState.Unverified;alignmentNote="Tracker tracking was lost; check the marker and press V, or recalibrate (C).";Reply(alignmentNote);}
-                lastObserved=now;
+                lastObserved=now;observedTicks=Stopwatch.GetTimestamp();
             }
             if(Alignment==ClinicianAlignmentState.Calibrating)Calibrate(ok,frame,now);
             UpdateVerify(ok,frame,now);
+            CarryOver(now);
             Pose? tracker=null,wrist=null;
             if(ok&&calibration!=null&&Alignment!=ClinicianAlignmentState.Invalid&&Alignment!=ClinicianAlignmentState.Calibrating)
             {var raw=new Pose(frame.Position,frame.Rotation);tracker=calibration.TrackerInSpace(raw);wrist=calibration.WristInSpace(raw);}
@@ -321,7 +388,7 @@ namespace QuestResearch.Clinician
             else{HandShown=false;contactLift=0;meshes[0].Apply(hidden,trackingSpace,false);meshes[1].Apply(hidden,trackingSpace,false);sleeve.gameObject.SetActive(false);}
 
             // In pilot mode the participant never sees the marker unless the researcher asks for it.
-            bool showMarker=tracker.HasValue&&(markerOn||(pilot==null&&Alignment==ClinicianAlignmentState.Unverified));
+            bool showMarker=tracker.HasValue&&(markerOn||OnResearcherPage||(pilot==null&&Alignment==ClinicianAlignmentState.Unverified));
             marker.gameObject.SetActive(showMarker);
             if(showMarker)marker.SetPositionAndRotation(trackingSpace.TransformPoint(tracker.Value.position),trackingSpace.rotation*tracker.Value.rotation);
             if(now>=nextStatus)
@@ -442,7 +509,7 @@ namespace QuestResearch.Clinician
         {
             public string alignment,note,mode,hidden,stage,participant,profile,affected,calibrationKind,calibrationUtc,clinicianHand,calibrationHand;
             public bool shown,trackerOk,headTracked,userPresent,bodyAligned,mirror,participantConfirmed,holdLeft,holdRight,mountStored,marker,calibrating,touchStage;
-            public int selectedParticipant,samples;public float residualCm,ageMs,rttMs,liftCm,palmCm,progress,calibrationSecondsLeft;
+            public int selectedParticipant,samples;public float residualCm,ageMs,rttMs,liftCm,palmCm,progress,calibrationSecondsLeft,originShiftCm;public bool stageValid,researcherPage;
         }
         readonly QuestStatus status=new QuestStatus();
         void SendStatus(string reason,bool ok,double age,bool headTracked,bool present,bool bodyAligned,int proximitySide,float progress,float proximity)
@@ -457,6 +524,7 @@ namespace QuestResearch.Clinician
             s.mountStored=calibration!=null&&calibration.trackerSerial==link.Serial;s.calibrationKind=calibration?.kind??"";s.calibrationUtc=calibration?.createdUtc??"";
             s.residualCm=calibration==null?-1:calibration.residualRmsMetres*100;s.clinicianHand=link.ClinicianHand;s.calibrationHand=SideName(calibrationSide);
             s.calibrating=Alignment==ClinicianAlignmentState.Calibrating;s.samples=samples.Count;s.calibrationSecondsLeft=s.calibrating?(float)Math.Max(0,calibrationSeconds-usableSeconds):0;
+            s.stageValid=calibration!=null&&calibration.stageValid;s.originShiftCm=lastOriginShift*100;s.researcherPage=OnResearcherPage;
             s.liftCm=contactLift*100;s.palmCm=proximitySide>=0?proximity*100:-1;s.progress=proximitySide>=0?progress:-1;
             link.Send("J,"+JsonUtility.ToJson(s));
         }

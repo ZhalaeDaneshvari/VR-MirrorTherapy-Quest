@@ -12,7 +12,7 @@ namespace QuestResearch.Embodiment
     // Head-directed dwell interaction stays independent of manipulated hand poses.
     public sealed class PilotWalkthrough : MonoBehaviour
     {
-        public enum Page { Welcome, Participant, RecordingError, SkinTone, Calibration, Table, Fit, Ready, Settings, Running, Aligning, HeightEntry, SurfaceCapture, SurfaceTools, Comfort, MirrorIntro, FutureTouch, Finished, HandSetup }
+        public enum Page { Welcome, Participant, RecordingError, SkinTone, Calibration, Table, Fit, Ready, Settings, Running, Aligning, HeightEntry, SurfaceCapture, SurfaceTools, Comfort, MirrorIntro, FutureTouch, Finished, HandSetup, ModeSelect, Researcher }
         [SerializeField] SeatedSetup setup;
         [SerializeField] HandTrackingSource hands;
         [SerializeField] BodyTrackingProbe body;
@@ -51,6 +51,11 @@ namespace QuestResearch.Embodiment
         public Page CurrentPage=>page;
         // Optional hooks for the clinician test build. The accepted pilot scene never sets them, so its flow is unchanged.
         public bool AffectedArmPrompt{get;set;}
+        // Researcher/participant start screen (clinician test build). The researcher page shows text and up to four
+        // buttons supplied by the clinician feature; the participant number then comes only from the researcher.
+        public bool ResearcherModeEnabled{get;set;}
+        public Func<string> ResearcherStatus;public Func<int,string> ResearcherButton;public Action<int> ResearcherAction;
+        Page StartPage=>ResearcherModeEnabled?Page.ModeSelect:Page.Welcome;
         public bool ClinicianTouchStage{get;set;}
         public bool MirrorActivity=>mirrorActivity;
         public int ParticipantNumber=>participantNumber;
@@ -62,9 +67,11 @@ namespace QuestResearch.Embodiment
         public bool ResearcherSetParticipant(int number,bool confirm,out string message)
         {
             if(number<1||number>20){message="Participant number must be 1-20.";return false;}
-            if(page!=Page.Welcome&&page!=Page.Participant){message="Participant can only be set on the welcome/participant screens (now: "+page+").";return false;}
+            bool setupScreen=page==Page.ModeSelect||page==Page.Researcher;
+            if(page!=Page.Welcome&&page!=Page.Participant&&!setupScreen){message="Participant can only be set before the participant confirms it (now: "+page+").";return false;}
             participantNumber=number;participantPage=(number-1)/10;participantFromResearcher=true;
             Record("participant_set_by_researcher");
+            if(setupScreen){RefreshText();message="P"+number.ToString("D2")+" stored; the participant sees it after choosing Participant mode.";return true;}
             if(confirm)
             {
                 if(recorder!=null&&recorder.Begin("P"+number.ToString("D2"))){Show(Page.HandSetup);message="P"+number.ToString("D2")+" confirmed; recording started.";return true;}
@@ -165,7 +172,7 @@ namespace QuestResearch.Embodiment
             status.transform.localPosition=new Vector3(0,compact?-.055f:-.365f,-.008f);
             stageLabel.gameObject.SetActive(!compact);
             recordingLabel.transform.localPosition=new Vector3(0,compact?-.085f:-.407f,-.008f);
-            Layout(next==Page.HeightEntry||next==Page.Participant);
+            Layout(next==Page.HeightEntry||(next==Page.Participant&&!ResearcherModeEnabled));
             RefreshText();
         }
         void Layout(bool keypad)
@@ -233,10 +240,10 @@ namespace QuestResearch.Embodiment
             if(!Application.isFocused || !setup.HeadTracked || !OpenXRUtility.IsUserPresent)
             {
                 surfaceCapture.Cancel();panel.gameObject.SetActive(false);placed=false;stableSince=-1;
-                if(wasFocused){Record("tracking_or_focus_lost");recorder?.End("tracking_or_focus_lost");page=Page.Welcome;alignAt=-1;wasFocused=false;}
+                if(wasFocused){Record("tracking_or_focus_lost");recorder?.End("tracking_or_focus_lost");page=StartPage;alignAt=-1;wasFocused=false;}
                 return;
             }
-            if(!wasFocused){wasFocused=true;if(fittedArms!=null)fittedArms.ClearFit();setup.BeginParticipantSetup();Show(Page.Welcome);}
+            if(!wasFocused){wasFocused=true;if(fittedArms!=null)fittedArms.ClearFit();setup.BeginParticipantSetup();Show(StartPage);}
             setup.ShowFitMarkers=page==Page.Fit;
             if(page==Page.SurfaceCapture&&!surfaceCapture.Active)
             {notice=surfaceCapture.Message;Record(surfaceCapture.Succeeded?"surface_estimated":"surface_estimate_failed");Show(Page.Table);}
@@ -298,6 +305,20 @@ namespace QuestResearch.Embodiment
             status.text="Aim the centre dot at a button. Hold still for 2 seconds.";
             switch(page)
             {
+                case Page.ModeSelect:
+                    heading.text="Mirror therapy";
+                    instructions.text="Researcher: set up and calibrate the clinician tracker.\nParticipant: begin the experience.\nThe researcher hands over the headset after setup.";
+                    Set(0,"Researcher");Set(1,"Participant");break;
+                case Page.Researcher:
+                    heading.text="Researcher setup";
+                    instructions.text=ResearcherStatus?.Invoke()??"";
+                    for(int b=0;b<4;b++)Set(b,ResearcherButton?.Invoke(b)??"");
+                    Set(5,"Done");break;
+                case Page.Participant when ResearcherModeEnabled:
+                    heading.text="Participant number";
+                    instructions.text=participantFromResearcher?"Your participant number: P"+participantNumber.ToString("D2")+"\nSet by your researcher.\nPlease select Confirm."
+                        :"Please wait.\nYour researcher will set your participant number.";
+                    Set(4,"Back");Set(5,"Confirm",participantFromResearcher&&(recorder==null||!recorder.Saving));break;
                 case Page.Welcome:
                     heading.text="Welcome";
                     instructions.text="A seated experience of virtual arms and hands.\nChoose your appearance, fit your table, then explore\nhow your movements appear on the opposite side.\nMove only as much as feels comfortable.";
@@ -402,6 +423,12 @@ namespace QuestResearch.Embodiment
         {
             switch(page)
             {
+                case Page.ModeSelect: if(i==0)Show(Page.Researcher);if(i==1)Show(Page.Welcome);break;
+                case Page.Researcher: if(i<4)ResearcherAction?.Invoke(i);if(i==5)Show(Page.ModeSelect);break;
+                case Page.Participant when ResearcherModeEnabled:
+                    if(i==4)Show(Page.Welcome);
+                    if(i==5&&participantFromResearcher){if(recorder.Begin("P"+participantNumber.ToString("D2")))Show(Page.HandSetup);else Show(Page.RecordingError);}
+                    break;
                 case Page.Welcome: if(i==5)Show(Page.Participant);break;
                 case Page.Participant:
                     if(i<10){participantNumber=participantPage*10+i+1;participantFromResearcher=false;}
@@ -464,7 +491,7 @@ namespace QuestResearch.Embodiment
                     if(i==4)Show(Page.Comfort);if(i==5&&FitReady)StartActivity(true);break;
                 case Page.FutureTouch: if(i==5)Finish();break;
                 case Page.Finished:
-                    if(i==5){skinTone=2;participantFromResearcher=false;GetComponent<SeatedAvatarDisplay>()?.SetSkinTone(DemoSkinPalette.Colours[2]);fittedArms?.ClearFit();setup.BeginParticipantSetup();Record("new_participant");Show(Page.Welcome);}break;
+                    if(i==5){skinTone=2;participantFromResearcher=false;GetComponent<SeatedAvatarDisplay>()?.SetSkinTone(DemoSkinPalette.Colours[2]);fittedArms?.ClearFit();setup.BeginParticipantSetup();Record("new_participant");Show(StartPage);}break;
                 case Page.Settings:
                     if(i==0){body.BeginParticipant(0);BeginAlignment();}
                     if(i==1){setup.SetMovement(MovementCondition.Normal,true);Show(Page.Table);}
@@ -478,6 +505,7 @@ namespace QuestResearch.Embodiment
         {
             switch(p)
             {
+                case Page.ModeSelect:case Page.Researcher:return "SETUP";
                 case Page.Welcome:case Page.Participant:case Page.HandSetup:return "01 / 07   WELCOME";
                 case Page.SkinTone:return "02 / 07   YOUR APPEARANCE";
                 case Page.Ready:case Page.Comfort:return "04 / 07   FAMILIARISATION";
@@ -488,7 +516,7 @@ namespace QuestResearch.Embodiment
                 default:return "03 / 07   PERSONAL FIT";
             }
         }
-        static bool RequiresAlignment(Page p)=>p!=Page.Welcome&&p!=Page.Participant&&p!=Page.HandSetup&&p!=Page.RecordingError&&p!=Page.SkinTone&&p!=Page.Calibration&&p!=Page.Finished;
+        static bool RequiresAlignment(Page p)=>p!=Page.ModeSelect&&p!=Page.Researcher&&p!=Page.Welcome&&p!=Page.Participant&&p!=Page.HandSetup&&p!=Page.RecordingError&&p!=Page.SkinTone&&p!=Page.Calibration&&p!=Page.Finished;
         void StartActivity(bool mirrored)
         {
             mirrorActivity=mirrored;activity.Begin(mirrored,HandProfile);lastPrompt=-1;
@@ -518,7 +546,7 @@ namespace QuestResearch.Embodiment
             try{events?.WriteLine(JsonUtility.ToJson(new PilotEvent{kind=kind,participant=recorder==null?"":recorder.Participant,session=recorder==null?"":recorder.Session,stage=page.ToString(),skinTone=DemoSkinPalette.Names[skinTone],activitySeconds=activity.Elapsed,promptIndex=activity.PromptIndex,utc=DateTime.UtcNow.ToString("O"),version=Application.version,affectedSide=AffectedArmPrompt?(HandProfile==ParticipantHands.RightOnly?"Left":HandProfile==ParticipantHands.LeftOnly?"Right":"None"):"Not collected in guided demo",movement=p.movementCondition.ToString(),monotonicSeconds=Time.realtimeSinceStartupAsDouble,tableHeight=p.tableHeight,tableNearEdge=p.tableNearEdge,standingHeight=0,tableConfirmed=p.tableAlignmentConfirmed,tableRest=p.tableContactEnabled}));}
             catch(Exception ex) when(ex is IOException||ex is UnauthorizedAccessException){notice="Demo event log failed";Debug.LogWarning("[Pilot] "+ex.Message);events=null;}
         }
-        void OnApplicationPause(bool paused){if(paused){Record("app_paused");recorder?.End("app_paused");alignAt=-1;page=Page.Welcome;placed=false;wasFocused=false;if(panel!=null)panel.gameObject.SetActive(false);}}
+        void OnApplicationPause(bool paused){if(paused){Record("app_paused");recorder?.End("app_paused");alignAt=-1;page=StartPage;placed=false;wasFocused=false;if(panel!=null)panel.gameObject.SetActive(false);}}
         void RefreshFontTexture(Font updated){if(updated==font&&uiText!=null)uiText.mainTexture=font.material.mainTexture;}
         void OnDestroy(){if(roundedMesh!=null)Destroy(roundedMesh);foreach(var m in swatches)if(m!=null)Destroy(m);if(dotMaterial!=null)Destroy(dotMaterial);Font.textureRebuilt-=RefreshFontTexture;Record("app_stop");events?.Dispose();if(panel!=null)Destroy(panel.gameObject);if(cardMaterial!=null)Destroy(cardMaterial);if(uiIdle!=null)Destroy(uiIdle);if(uiHover!=null)Destroy(uiHover);if(uiText!=null)Destroy(uiText);}
     }

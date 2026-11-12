@@ -37,6 +37,11 @@ namespace QuestResearch.Clinician
         public string ClinicianHand{get;private set;}="right";
         public long PcFrequency{get;private set;}=10000000;
         public long Frames{get;private set;}
+        // Stopwatch ticks of the latest tracker or stream interruption: a frame that is not Running_OK, a gap of more
+        // than 0.25 s between frames, or a lost connection. Read from the main thread.
+        long interruption,lastFrameTicks;
+        public long InterruptionTicks=>System.Threading.Interlocked.Read(ref interruption);
+        void Interrupted(long ticks)=>System.Threading.Interlocked.Exchange(ref interruption,ticks);
         public int Connections{get;private set;}
         // Clock mapping from the lowest-RTT ping in the last 10: pcSeconds + offset = Quest Stopwatch seconds.
         public double RoundTripMs{get;private set;}=-1;
@@ -73,11 +78,11 @@ namespace QuestResearch.Clinician
                         var writer=new StreamWriter(stream,new UTF8Encoding(false)){NewLine="\n",AutoFlush=false};
                         while(outgoing.TryDequeue(out _)){}
                         lock(gate)haveFrame=false;
-                        connected=true;Connections++;
+                        connected=true;Connections++;lastFrameTicks=0;Interrupted(Stopwatch.GetTimestamp());
                         var sender=new Thread(()=>Write(writer)){IsBackground=true,Name="Clinician tracker sender"};sender.Start();
                         var reader=new StreamReader(stream,Encoding.UTF8);string line;
                         while(running&&(line=reader.ReadLine())!=null)Parse(line);
-                        connected=false;sender.Join(500);
+                        connected=false;Interrupted(Stopwatch.GetTimestamp());sender.Join(500);
                     }
                 }
                 catch(Exception){}
@@ -116,6 +121,8 @@ namespace QuestResearch.Clinician
                         var f=new ClinicianTrackerFrame{Sequence=L(p[1]),PcTicks=L(p[2]),PcUtcMs=L(p[3]),TrackerConnected=p[4]=="1",Valid=p[5]=="1",
                             Result=(int)L(p[6]),RawPosition=new Vector3((float)D(p[7]),(float)D(p[8]),(float)D(p[9])),
                             RawRotation=new Quaternion((float)D(p[10]),(float)D(p[11]),(float)D(p[12]),(float)D(p[13])),ReceivedTicks=received};
+                        if(!f.Running||(lastFrameTicks!=0&&received-lastFrameTicks>Stopwatch.Frequency/4))Interrupted(received);
+                        lastFrameTicks=received;
                         lock(gate){latest=f;haveFrame=true;}Frames++;return;
                     case "H":
                         if(p.Length>=6){Serial=p[2];PcFrequency=Math.Max(1,L(p[4]));ClinicianHand=p[5]=="left"?"left":"right";}

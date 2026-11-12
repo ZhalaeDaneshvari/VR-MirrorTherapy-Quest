@@ -103,7 +103,18 @@ public static class ClinicianTrackerSetup
         if(Mathf.Abs(inside-.013f)>.0005f||ClinicianTrackerFeature.Penetration(new Vector3(0,.81f,.42f),top)!=0
             ||ClinicianTrackerFeature.Penetration(new Vector3(.05f,.79f,.42f),top)!=0||ClinicianTrackerFeature.Penetration(new Vector3(0,.79f,.60f),top)!=0)
             throw new BuildFailedException("Forearm contact correction check failed (inside lift "+inside+").");
-        Debug.Log("[Clinician] Conversion, calibration recovery ("+message+"), sample gate, reflection and contact-lift checks PASS.");
+        // Carry-over: after a Quest origin shift D, a calibrated tracker pose must map to D applied to its old place.
+        var carried=new ClinicianCalibration{yawDegrees=40,translation=new Vector3(.2f,0,.5f),stageValid=true,stagePosition=new Vector3(1,0,-2),stageRotation=Quaternion.Euler(0,15,0)};
+        var probe=new Pose(new Vector3(.3f,.8f,-.1f),Quaternion.Euler(10,70,-5));var before=carried.TrackerInSpace(probe);
+        var shiftRotation=Quaternion.Euler(0,-35,0);var shiftOffset=new Vector3(-.4f,0,.9f);// D: new = shiftRotation*old + shiftOffset
+        var movedStage=new Pose(shiftRotation*carried.stagePosition+shiftOffset,shiftRotation*carried.stageRotation);
+        if(!carried.FollowStage(movedStage,out _,out _))throw new BuildFailedException("Carry-over rejected a pure yaw shift.");
+        var after=carried.TrackerInSpace(probe);var expected=new Pose(shiftRotation*before.position+shiftOffset,shiftRotation*before.rotation);
+        if(Vector3.Distance(after.position,expected.position)>1e-4f||Quaternion.Angle(after.rotation,expected.rotation)>.05f)
+            throw new BuildFailedException("Calibration carry-over does not follow the origin shift.");
+        var tilted=new Pose(movedStage.position,Quaternion.Euler(8,0,0)*movedStage.rotation);
+        if(carried.FollowStage(tilted,out _,out _))throw new BuildFailedException("Carry-over accepted a tilted shift.");
+        Debug.Log("[Clinician] Conversion, calibration recovery ("+message+"), sample gate, reflection, contact-lift and carry-over checks PASS.");
     }
 
     [MenuItem("Quest Prototype/Clinician Tracker (test)/Build Test APK")]

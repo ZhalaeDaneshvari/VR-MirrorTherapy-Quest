@@ -13,7 +13,10 @@ namespace QuestResearch.Clinician
     {
         public int schema=1;
         public string revision,createdUtc,trackerSerial,clinicianHand;
-        public string kind="full",mountRevision;// "participant-alignment" reuses the strap mount of calibration mountRevision
+        public string kind="full",mountRevision;
+        // Room-boundary (Meta "stage") origin in Quest tracking space when this alignment was last valid. Lets the alignment
+        // follow a Quest origin shift (e.g. headset handed over) instead of being discarded.
+        public bool stageValid;public Vector3 stagePosition;public Quaternion stageRotation=Quaternion.identity;// "participant-alignment" reuses the strap mount of calibration mountRevision
         public float yawDegrees;public Vector3 translation;
         public Vector3 mountPosition;public Quaternion mountRotation=Quaternion.identity;
         public int samples;public float residualRmsMetres,orientationSpreadDegrees,positionSpreadMetres,mountRotationSpreadDegrees;
@@ -21,6 +24,18 @@ namespace QuestResearch.Clinician
         {
             var yaw=Quaternion.Euler(0,yawDegrees,0);
             return new Pose(yaw*tracker.position+translation,yaw*tracker.rotation);
+        }
+        // The Quest tracking space moved: the room-boundary origin, fixed in the room, now has pose `stage` instead of the
+        // stored one. Re-express the alignment so physical points keep their place. Returns false (unchanged) if the shift
+        // is not a pure yaw plus translation within 2 degrees; reports the shift in metres and the yaw in degrees.
+        public bool FollowStage(Pose stage,out float shift,out float yaw)
+        {
+            var old=new Pose(stagePosition,stageRotation);var delta=stage.rotation*Quaternion.Inverse(old.rotation);
+            shift=Vector3.Distance(stage.position,old.position);yaw=Mathf.DeltaAngle(0,delta.eulerAngles.y);
+            if(Quaternion.Angle(delta,Quaternion.Euler(0,yaw,0))>2)return false;
+            var yawRotation=Quaternion.Euler(0,yaw,0);
+            translation=yawRotation*(translation-old.position)+stage.position;yawDegrees=Mathf.Repeat(yawDegrees+yaw,360);
+            stagePosition=stage.position;stageRotation=stage.rotation;return true;
         }
         public Pose WristInSpace(Pose tracker)
         {

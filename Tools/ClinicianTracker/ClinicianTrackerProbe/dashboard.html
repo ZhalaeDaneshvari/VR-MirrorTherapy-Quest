@@ -58,14 +58,14 @@ ol{margin:6px 0 0;padding-left:20px}ol li{margin:3px 0}
       <div class="row"><select id="pnum"></select>
         <button class="primary" onclick="cmd('participant:'+val())">Show on headset</button>
         <button onclick="cmd('participant-confirm:'+val())">Show &amp; confirm</button></div>
-      <div class="hint">Works on the headset's welcome / participant screens. "Show" lets the participant confirm; "Show &amp; confirm" starts their recording session.</div>
+      <div class="hint">The participant only sees this number and selects Confirm. Set it any time before they confirm, including while you are in Researcher mode.</div>
     </div>
     <div class="card"><h2>2 &middot; Calibration</h2>
       <div class="row"><button class="primary" id="bCalP" onclick="cmd('calibrate-participant')">Calibrate with participant</button>
         <button onclick="cmd('calibrate')">Full calibration (researcher)</button></div>
       <div class="row"><button onclick="cmd('verify')">Confirm alignment</button><button onclick="cmd('trust')">Accept without check</button>
         <button onclick="cmd('marker')" id="bMarker">Marker</button><button onclick="if(confirm('Clear the stored calibration?'))cmd('clear')">Clear</button></div>
-      <div class="hint" id="calHint">During hand-colour selection, give the participant the tracker: they hold it in their moving (unaffected) hand for ~15 s, then strap it back on the clinician.</div>
+      <div class="hint" id="calHint">Normally calibrate in the headset's Researcher mode. "Calibrate with participant" is the fallback: they hold the tracker in their moving hand for ~15 s.</div>
     </div>
     <div class="card"><h2>3 &middot; Clinician hand</h2>
       <div class="row"><button id="mOff" onclick="cmd('mode-off')">Off</button><button id="mRef" onclick="cmd('mode-reflected')">Mirrored</button><button id="mCon" onclick="cmd('mode-congruent')">Same side</button></div>
@@ -79,11 +79,11 @@ ol{margin:6px 0 0;padding-left:20px}ol li{margin:3px 0}
 
   <section class="controls">
     <div class="card"><h2>Pilot session steps</h2><ol>
-      <li><b>Once per tracker strap:</b> researcher wears the headset with the tracker strapped as the clinician will, clicks <i>Full calibration</i>, moves that hand slowly ~15 s, then <i>Confirm alignment</i> with the hand in view.</li>
-      <li>Participant puts on the headset. Choose their number and click <i>Show on headset</i>.</li>
-      <li>The participant chooses their affected arm in the headset.</li>
-      <li>During hand-colour selection: hand them the tracker, click <i>Calibrate with participant</i>; strap it back on the clinician when the calibration card turns green.</li>
-      <li>Set the clinician hand to <i>Mirrored</i>. It appears only in the mirror experience and clinician-touch stages.</li>
+      <li>Researcher puts on the headset and chooses <i>Researcher</i>. With the tracker strapped on the hand as the clinician wears it: <i>Calibrate tracker</i>, move that hand slowly ~15 s, then <i>Confirm alignment</i> with the hand in view, then <i>Done</i>.</li>
+      <li>Choose the participant number here and click <i>Show on headset</i>. Set the clinician hand to <i>Mirrored</i>.</li>
+      <li>Strap the tracker on the clinician. Hand the headset to the participant: they choose <i>Participant</i>, confirm their number and choose their affected arm.</li>
+      <li>Watch the Calibration card: it should stay green through the handover. If it turns amber or red, use <i>Accept without check</i> (logged) or <i>Calibrate with participant</i>.</li>
+      <li>The clinician hand appears only in the mirror experience and the clinician-touch stage.</li>
       <li>At <i>Clinician touch</i>: stroke the unaffected forearm from elbow to wrist.</li></ol></div>
     <div class="card"><h2>Messages from the headset</h2><pre id="log"></pre></div>
   </section>
@@ -91,7 +91,7 @@ ol{margin:6px 0 0;padding-left:20px}ol li{margin:3px 0}
 <div id="toast"></div>
 <script>
 const $=id=>document.getElementById(id);
-const stages={Welcome:"Welcome",Participant:"Participant number",HandSetup:"Affected arm",RecordingError:"Recording problem",SkinTone:"Hand colour",Calibration:"Get comfortable",
+const stages={ModeSelect:"Start screen",Researcher:"Researcher setup",Welcome:"Welcome",Participant:"Participant number",HandSetup:"Affected arm",RecordingError:"Recording problem",SkinTone:"Hand colour",Calibration:"Get comfortable",
   Aligning:"Aligning",Table:"Table setup",SurfaceCapture:"Table setup",SurfaceTools:"Table setup",HeightEntry:"Table height",Fit:"Fit check",Ready:"Ready",
   Comfort:"Comfort check",MirrorIntro:"Mirror intro",FutureTouch:"Clinician touch",Finished:"Finished",Settings:"Paused"};
 for(let n=1;n<=20;n++){const o=document.createElement('option');o.value=n;o.textContent='P'+String(n).padStart(2,'0');$('pnum').appendChild(o)}
@@ -111,10 +111,11 @@ function render(s){
     (s.pc.serial||'')+(s.pc.battery>=0?' · battery '+s.pc.battery+'%':'')+(q?' · data '+Math.round(q.ageMs)+' ms old, RTT '+q.rttMs.toFixed(1)+' ms':''));
   if(!q){['Cal','Hand','Part','Stage','Hold'].forEach(c=>set(c,'idle','–','Waiting for the headset app'));return}
   if(q.calibrating)set('Cal','warn','Calibrating… '+Math.ceil(q.calibrationSecondsLeft)+' s',(q.calibrationHand?'Using the '+q.calibrationHand+' hand · ':'')+q.samples+' samples');
-  else if(q.alignment==='Verified')set('Cal','ok','Ready',(q.calibrationKind==='participant-alignment'?'Aligned with participant':'Full calibration')+(q.residualCm>=0?' · fit '+q.residualCm.toFixed(1)+' cm':''));
+  else if(q.alignment==='Verified')set('Cal','ok','Ready',(q.calibrationKind==='participant-alignment'?'Aligned with participant':'Full calibration')+(q.residualCm>=0?' · fit '+q.residualCm.toFixed(1)+' cm':'')
+    +(q.originShiftCm>0?' · carried over a '+q.originShiftCm.toFixed(1)+' cm headset origin shift':'')+(q.stageValid?'':' · not anchored to the room boundary'));
   else if(q.alignment==='Unverified')set('Cal','warn','Check needed',q.note);
   else set('Cal','bad',q.alignment==='Invalid'?'Needs calibration':'Not calibrated',q.note);
-  $('bCalP').disabled=!q.mountStored;$('calHint').textContent=q.mountStored?'During hand-colour selection, give the participant the tracker: they hold it in their moving (unaffected) hand for ~15 s, then strap it back on the clinician.'
+  $('bCalP').disabled=!q.mountStored;$('calHint').textContent=q.mountStored?'Normally calibrate in the headset\'s Researcher mode. "Calibrate with participant" is the fallback: they hold the tracker in their moving hand for ~15 s.'
     :'No strap calibration stored for this tracker yet: do the full calibration (step 1 below) first.';
   $('bMarker').classList.toggle('on',q.marker);
   ['mOff','mRef','mCon'].forEach((id,i)=>$(id).classList.toggle('on',q.mode===['Off','Reflected','Congruent'][i]));
