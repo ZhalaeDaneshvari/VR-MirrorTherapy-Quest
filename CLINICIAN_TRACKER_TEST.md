@@ -23,7 +23,7 @@ pilot:
   calibrated body midline with the pilot's `MovementReflection.Reflect`, drawn as the opposite hand). Reflected
   mode stays hidden when the participant midline is not calibrated; it never falls back to congruent.
 - Hidden whenever: mode off, PC link down, stream older than 100 ms, tracker not `Running_OK`, alignment not
-  confirmed, headset not tracking/worn.
+  confirmed, headset not tracking/worn, and (pilot flow) outside the mirror experience and Clinician touch stage.
 - Logged on the headset under `ClinicianTrackerData/` in the app's files folder, separate from participant
   `MovementData/`: the raw tracker pose exactly as streamed (OpenVR frame), the calibrated tracker and wrist
   poses (Quest space), the displayed wrist pose, validity, hidden reason, mode, calibration revision, PC and
@@ -33,9 +33,24 @@ pilot:
 ## Equipment and connection
 
 The Windows PC runs SteamVR + VIVE Hub with the tracker, and the probe in `stream` mode. The Quest connects
-to the PC **over the USB cable** (`adb reverse tcp:47800`), so lab Wi-Fi is not involved. Whether SteamVR
-keeps the tracker running while the Quest is in its standalone app (not Quest Link) is part of what this
-test checks; HTC documents PC use with a SteamVR headset connected.
+to the PC **over the USB cable** (`adb reverse tcp:47800`), so lab Wi-Fi is not involved. SteamVR must run
+**without a headset driver** (`null` driver, `oculus` driver disabled; settings in
+`Tools/ClinicianTracker/README.md`): with the Quest as SteamVR's headset, SteamVR quits after the Quest leaves
+Link (2026-11-11 result below). HTC documents PC use only with a SteamVR headset connected.
+
+## Current state (2026-11-12)
+
+Working on the lab hardware, one tester plus volunteer runs (P02, P06): researcher-mode calibration
+(0.8–1.5 cm confirmed against the wearer's wrist), handover to the participant with the calibration carried over
+the Quest origin change, researcher-set participant number, affected-arm choice, clinician hand hidden until
+the mirror experience, reflected elbow-to-wrist stroke in the Clinician touch stage, contact lift, arm hold and
+reach slack (participant arm shown 95 % of the P06 stroke). Use the [pilot session flow](#pilot-ready-session-flow-2026-11-12-test-app-only)
+below; the key-driven procedure that follows still works but is the older route.
+
+Open: alignment after an app restart can be several centimetres off (6.3 cm once) and confirmation has no
+threshold, so recalibrate in researcher mode after each app start; select the clinician-hand mode on the
+dashboard after each app start (it starts Off); tracker dropouts still occur; post-handover accuracy, latency
+and finger/contact sensing are not measured or not available.
 
 ## Procedure
 
@@ -194,16 +209,24 @@ checksum-verified, in `Documents\VRMirrorTherapy\tools\scrcpy`, outside the repo
 read-only, unrecorded USB mirror of the headset display.
 
 **Headset flow changes (test app):**
+- The app opens on a **start screen: Researcher / Participant** (it returns there after the headset comes off,
+  a pause or the end of a session). **Researcher** shows tracker and calibration status with buttons to
+  calibrate/recalibrate and confirm alignment, then **Done**. **Participant** starts the pilot walkthrough.
+- The participant cannot type a number: the participant page shows only the number the researcher set on the
+  dashboard, and Confirm appears only once one is set ("Show & confirm" on the dashboard confirms it directly).
+  The number can be changed until it is confirmed.
 - After the participant number, the participant chooses **which arm is affected**. They move and rest the OTHER
   arm; it is mirrored onto the affected side (left affected = "right hand only" + right-to-left mirroring).
-- The researcher can set the participant number from the dashboard ("Show on headset" leaves Confirm to the
-  participant; "Show & confirm" starts the recording session).
 - The placeholder "Coming next: visual touch" page becomes **Clinician touch**: rest the unaffected forearm;
   the clinician strokes it elbow to wrist; the stroke appears on the affected side.
 - The clinician hand is shown only during the mirror experience and the clinician-touch stage. The participant
   never sees the alignment marker or researcher status text; only participant-calibration instructions.
 
-**Calibration in a pilot:**
+**Calibration in a pilot (current route: researcher mode):** the researcher wears the headset and the strapped
+tracker, calibrates and confirms on the Researcher page, taps Done and hands the headset over. The calibration
+is anchored to the Quest room boundary and follows the origin changes that putting the headset on causes, so
+the participant starts already calibrated. After an app restart, recalibrate rather than only confirming.
+Alternatives (dashboard):
 1. Full calibration once per tracker strap (researcher wears the headset and the strapped tracker): stores the
    strap mount and a room alignment.
 2. During the participant's setup (e.g. hand colour), **Calibrate with participant**: the participant holds the
@@ -217,10 +240,10 @@ read-only, unrecorded USB mirror of the headset display.
 the displayed participant forearm (rounded forearm model around the displayed top line, 3 mm clearance). The lift
 is logged per frame (`contactLiftMetres`) and shown on the dashboard. It does not sense contact.
 
-**Status:** headset build compiles and passes the self-checks (including the contact-lift check); the dashboard
-was verified serving status and commands with the headset app connected. Not yet verified on the headset:
-participant-held calibration, affected-arm flow, gating, contact lift, researcher-set participant number, and
-the scrcpy view on this PC.
+**Status when first built:** headset build compiles and passes the self-checks (including the contact-lift
+check); the dashboard was verified serving status and commands with the headset app connected. The headset
+results follow below: participant-held calibration, affected-arm flow, gating and researcher-set participant
+number in the first dry run; researcher mode and handover, contact lift and the arm hold in the later runs.
 
 ### 2026-11-12: first pilot-flow dry run (one person)
 

@@ -1,9 +1,10 @@
 # Clinician tracker probe (VIVE Ultimate Tracker, Windows) — 0.1.0
 
-Isolated Windows tool for the clinician-hand tracking investigation. It is **not part of the pilot**:
-nothing under `Assets/`, `Packages/` or the pilot scene/APK is touched, and no XR package is added to the
-Unity project. It reads one VIVE Ultimate Tracker through SteamVR's OpenVR API and logs it separately from
-participant data.
+Windows tool for the clinician-hand test app. It is **not part of the pilot** and is not a Unity component:
+it adds no XR package to the Unity project and never touches the pilot scene or APK. It reads one VIVE
+Ultimate Tracker through SteamVR's OpenVR API, logs it separately from participant data, and in `stream` mode
+feeds the Quest app **Mirror Pilot Clinician Test** and serves the researcher dashboard. The Quest side and
+the session procedure are in [`CLINICIAN_TRACKER_TEST.md`](../../CLINICIAN_TRACKER_TEST.md).
 
 ## Requirements
 
@@ -110,9 +111,15 @@ the table, has not relocalised on its own. Whether pointing its cameras at the m
 and how long that takes, is the next check; it decides whether occlusion during clinician touch is
 recoverable in a session.
 
-Not yet verified: reliable recovery after occlusion, whether the frame is the same after recovery,
-behaviour when the headset leaves Link, network streaming to the standalone Quest app, calibration
-accuracy, latency.
+Later results (2026-11-11/12, details in `CLINICIAN_TRACKER_TEST.md`): with the default SteamVR setup,
+SteamVR quits about two minutes after the Quest leaves Link; with SteamVR running headless (below) the tracker
+stays available while the Quest runs its standalone app, and streaming over USB worked on the headset (frames
+median 2.6 ms old at render, 0.5 ms round trip). The original tracker had poor room tracking; a replacement
+tracker on a new VIVE Hub map tracked well enough for calibration (0.8–1.5 cm confirmed) but still drops out
+occasionally, and the app then asks for the alignment to be checked again.
+
+Still not verified: whether the tracker's frame is unchanged after a dropout (the app assumes it may not be),
+end-to-end motion-to-photon latency, and calibration accuracy over a whole session.
 
 ## Documented constraints (checked 2026-11-11)
 
@@ -139,8 +146,30 @@ accuracy, latency.
 ## Streaming to the Quest test app
 
 `stream` sends every tracker sample to the clinician test app over USB (`adb reverse tcp:47800`; it finds
-Unity's `adb.exe` or takes `--adb`) and forwards researcher keys: **C** calibrate, **V** confirm alignment,
-**K** marker, **0/1/2** off/congruent/reflected, **X** clear calibration, **A** redo `adb reverse`, **Q** quit.
-Line protocol and procedure: see `StreamServer.cs` and `CLINICIAN_TRACKER_TEST.md` at the repository root.
-Verified on loopback (2026-11-11): 250 Hz frames, no drops, header, clock-sync reply and Quest-to-PC messages
-logged.
+Unity's `adb.exe` or takes `--adb`), keeps running and reconnects if SteamVR restarts, and accepts researcher
+commands three ways:
+
+- **Researcher dashboard** (the "website"): `dashboard.html`, served on this PC only at
+  `http://localhost:47801` (`--dashboard <port>`, `--browser no` to not open it). It shows calibration
+  (ready / check needed / needs calibration, fit, room anchoring), clinician-hand visibility and why it is
+  hidden, participant number and recording, headset stage and affected arm, tracker battery, data age and round
+  trip, the arm hold and contact lift, and the headset's messages. Controls: participant number (show, or show
+  and confirm), calibrate with participant, full calibration, confirm alignment, accept without a check,
+  marker, clear, clinician-hand mode Off / Mirrored / Same side, and **Open headset view** (scrcpy, read-only,
+  not recorded; default `..	ools\scrcpy\scrcpy.exe` relative to the probe's folder, or `--scrcpy <scrcpy.exe>`).
+- **Keys** in the probe window: **C** calibrate, **V** confirm alignment, **K** marker, **0/1/2**
+  off/congruent/reflected, **X** clear calibration, **A** redo `adb reverse`, **Q** quit.
+- **Command file** (`stream-commands.txt` in the working folder, or `--commands <file>`): append one command per
+  line to drive a session remotely.
+
+Line protocol: see `StreamServer.cs`. Verified on the lab headset 2026-11-11/12 (see `CLINICIAN_TRACKER_TEST.md`).
+
+### Running SteamVR without a headset (needed once the Quest leaves Link)
+
+With the Quest as SteamVR's headset (`oculus` driver), SteamVR shuts down soon after the Quest leaves Link and
+the tracker stream stops. For the standalone test app, close SteamVR, back up
+`C:\Program Files (x86)\Steam\config\steamvr.vrsettings`, and set: `"steamvr": {"requireHmd": false,
+"forcedDriver": "null", "activateMultipleDrivers": true}`, `"driver_null": {"enable": true}`,
+`"driver_oculus": {"enable": false}`. This is community-documented, not HTC-documented. Quest Link through
+SteamVR does not work until the backed-up file is restored (close SteamVR first). On the lab PC the backup and a
+restore script are in `Documents\VRMirrorTherapy\steamvr-backup\` (outside the repository).
