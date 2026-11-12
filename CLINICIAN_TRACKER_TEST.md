@@ -126,3 +126,23 @@ back of the right hand and sat inside the mapped area.
 - Not yet tested: a second person wearing the tracker as clinician, reflected mode, the elbow-to-wrist stroke
   (palm-to-displayed-forearm proximity needs the pilot body fit, which was not run), end-to-end motion-to-photon
   latency, and behaviour over longer sessions.
+
+### 2026-11-12: reflected mode and the forearm stroke (one person, "Left hand only" pilot profile)
+
+The tester wore the tracker on the right hand as the clinician and stroked their own resting left forearm;
+the pilot's guided setup ran with "Left hand only". A PC helper kept alignment confirmed and recalibrated when
+the app required it (all commands logged by the probe).
+
+- Putting the headset back on moved the Quest origin again (15:39:18), invalidating alignment as designed; the
+  helper recalibrated: two attempts rejected (implausible 48 cm mount; 2.5 cm residual), third accepted
+  (1.1 cm RMS, 10.6 cm mount), alignment confirmed at 1.3 cm. The tracker did not drop out afterwards.
+- Reflected clinician hand displayed; the tester confirmed seeing it.
+- **Finding: the participant's displayed forearm disappears when the clinician hand reaches in.** Over 151 s
+  of reflected mode, the displayed forearm vanished 28 times (0–1.9 s each) while the clinician hand was shown,
+  usually as the clinician palm came within 7–20 cm (median 15 cm). Palm-to-displayed-forearm distances under
+  6 cm were only recorded for 0–45 % of the elbow-to-wrist line. Cause: Quest hand tracking uses the headset
+  cameras; the clinician's hand occludes the participant's hand, and the pilot intentionally hides the whole
+  arm on invalid hand data instead of inventing a pose. The VIVE-tracked clinician hand is unaffected.
+- Implication: the tracker solves clinician identity and clinician-hand pose, but touch near the participant's
+  hand breaks participant hand tracking. Any mitigation (holding the resting arm during touch, stroke
+  technique, an additional forearm tracker) changes or adds participant-side behaviour and needs a decision.
