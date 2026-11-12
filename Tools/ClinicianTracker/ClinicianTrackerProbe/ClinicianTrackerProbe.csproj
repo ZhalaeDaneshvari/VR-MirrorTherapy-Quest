@@ -19,6 +19,7 @@
     <Compile Include="..\ThirdParty\OpenVR\openvr_api.cs" Link="ThirdParty\openvr_api.cs" />
     <!-- Use the loader installed with SteamVR instead of committing a binary. -->
     <None Include="$(OpenVrLoader)" Link="openvr_api.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('$(OpenVrLoader)')" />
+    <None Include="dashboard.html" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <Target Name="RequireOpenVrLoader" BeforeTargets="Build" Condition="!Exists('$(OpenVrLoader)')">
     <Error Text="SteamVR openvr_api.dll not found at $(OpenVrLoader). Install SteamVR or build with -p:SteamVRDir=&lt;SteamVR folder&gt;." />

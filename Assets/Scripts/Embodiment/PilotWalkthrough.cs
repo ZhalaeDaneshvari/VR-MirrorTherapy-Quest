@@ -49,6 +49,30 @@ namespace QuestResearch.Embodiment
         double outsideSince=-1;
         int lastHovered=-1;
         public Page CurrentPage=>page;
+        // Optional hooks for the clinician test build. The accepted pilot scene never sets them, so its flow is unchanged.
+        public bool AffectedArmPrompt{get;set;}
+        public bool ClinicianTouchStage{get;set;}
+        public bool MirrorActivity=>mirrorActivity;
+        public int ParticipantNumber=>participantNumber;
+        public bool ParticipantConfirmed=>recorder!=null&&recorder.Recording;
+        public string ParticipantId=>recorder==null?"":recorder.Participant;
+        public ParticipantHands Profile=>HandProfile;
+        bool participantFromResearcher;
+        // Researcher-selected participant number (clinician test build). Only before the number is confirmed.
+        public bool ResearcherSetParticipant(int number,bool confirm,out string message)
+        {
+            if(number<1||number>20){message="Participant number must be 1-20.";return false;}
+            if(page!=Page.Welcome&&page!=Page.Participant){message="Participant can only be set on the welcome/participant screens (now: "+page+").";return false;}
+            participantNumber=number;participantPage=(number-1)/10;participantFromResearcher=true;
+            Record("participant_set_by_researcher");
+            if(confirm)
+            {
+                if(recorder!=null&&recorder.Begin("P"+number.ToString("D2"))){Show(Page.HandSetup);message="P"+number.ToString("D2")+" confirmed; recording started.";return true;}
+                Show(Page.RecordingError);message="Recording could not start for P"+number.ToString("D2")+".";return false;
+            }
+            if(page==Page.Welcome)Show(Page.Participant);else RefreshText();
+            message="P"+number.ToString("D2")+" shown on the headset; waiting for Confirm.";return true;
+        }
         public bool AlignmentUIHidden=>page==Page.Aligning && !panel.gameObject.activeSelf;
         public void Configure(SeatedSetup s,HandTrackingSource h,BodyTrackingProbe b,Transform camera,Material idle,Material hover,Font f)
         {setup=s;hands=h;body=b;head=camera;idleMaterial=idle;hoverMaterial=hover;font=f;}
@@ -283,7 +307,13 @@ namespace QuestResearch.Embodiment
                     instructions.text="Selected: P"+participantNumber.ToString("D2")+"\nEach run is saved as a separate session.\nChoose a number, then Confirm.";
                     for(int n=0;n<10;n++){int number=participantPage*10+n+1;Set(n,"P"+number.ToString("D2")+(number==participantNumber?"\nSelected":""));}
                     Set(12,"P01 - P10",participantPage>0);Set(13,"P11 - P20",participantPage==0);
-                    Set(14,"Confirm",recorder==null||!recorder.Saving);Set(15,"Back");break;
+                    Set(14,"Confirm",recorder==null||!recorder.Saving);Set(15,"Back");
+                    if(participantFromResearcher)instructions.text="Your researcher selected: P"+participantNumber.ToString("D2")+"\nEach run is saved as a separate session.\nPlease select Confirm.";
+                    break;
+                case Page.HandSetup when AffectedArmPrompt:
+                    heading.text="Which arm is affected?";
+                    instructions.text="Choose the arm that is painful or affected.\nYou will move and rest your OTHER arm.\nIt will appear on your affected side,\nand so will the clinician's touch.";
+                    Set(0,"Neither\n(use both)");Set(1,"Left arm");Set(2,"Right arm");break;
                 case Page.HandSetup:
                     heading.text="Choose physical hand availability";
                     instructions.text="Select the hand(s) you will use.\nOne-hand mode needs only the selected hand.\nPractice shows that hand on its own side.\nMirroring shows ONLY the opposite virtual hand.";
@@ -339,6 +369,12 @@ namespace QuestResearch.Embodiment
                     heading.text="Explore the opposite side";
                     instructions.text="Your real left hand will move the virtual right.\nYour real right hand will move the virtual left.\nBoth virtual hands stay visible when tracked.\nFollow six gentle prompts, about 10 seconds each.";
                     Set(4,"Back");Set(5,"Begin mirror experience",setup==null||FitReady);break;
+                case Page.FutureTouch when ClinicianTouchStage:
+                    heading.text="Clinician touch";
+                    instructions.text=SingleHand
+                        ?"Rest your "+SourceSide.ToLowerInvariant()+" forearm on the table, palm down.\nKeep it still and relaxed.\nThe clinician will stroke it from elbow to wrist.\nWatch your "+TargetSide.ToLowerInvariant()+" arm."
+                        :"Rest both forearms on the table, palms down.\nKeep them still and relaxed.\nThe clinician will stroke one forearm.\nWatch the opposite arm.";
+                    Set(5,"Finish");break;
                 case Page.FutureTouch:
                     heading.text="Coming next: visual touch";
                     instructions.text="A future clinician-guided stage will pair a stroke\non one real forearm with a visible stroke\non the opposite virtual forearm.\nHaptic-glove integration: to be implemented.\nNo touch sensing or stimulation is active here.";
@@ -368,12 +404,14 @@ namespace QuestResearch.Embodiment
             {
                 case Page.Welcome: if(i==5)Show(Page.Participant);break;
                 case Page.Participant:
-                    if(i<10)participantNumber=participantPage*10+i+1;
+                    if(i<10){participantNumber=participantPage*10+i+1;participantFromResearcher=false;}
                     if(i==12)participantPage=0;if(i==13)participantPage=1;
                     if(i==14){if(recorder.Begin("P"+participantNumber.ToString("D2")))Show(Page.HandSetup);else Show(Page.RecordingError);}
                     if(i==15)Show(Page.Welcome);break;
                 case Page.HandSetup:
-                    if(i>=0&&i<=2){setup.SetParticipantHands((ParticipantHands)i);fittedArms?.ClearFit();stableSince=-1;Record("hand_profile_selected");Show(Page.SkinTone);}break;
+                    // Affected-arm prompt: the participant moves the OTHER arm, so "left affected" means right hand only.
+                    if(i>=0&&i<=2){setup.SetParticipantHands(AffectedArmPrompt?(i==1?ParticipantHands.RightOnly:i==2?ParticipantHands.LeftOnly:ParticipantHands.Both):(ParticipantHands)i);
+                        fittedArms?.ClearFit();stableSince=-1;Record(AffectedArmPrompt?"affected_arm_selected":"hand_profile_selected");Show(Page.SkinTone);}break;
                 case Page.RecordingError:
                     if(i==5){recorder.End("recording_error");Show(Page.Welcome);}break;
                 case Page.SkinTone:
@@ -426,7 +464,7 @@ namespace QuestResearch.Embodiment
                     if(i==4)Show(Page.Comfort);if(i==5&&FitReady)StartActivity(true);break;
                 case Page.FutureTouch: if(i==5)Finish();break;
                 case Page.Finished:
-                    if(i==5){skinTone=2;GetComponent<SeatedAvatarDisplay>()?.SetSkinTone(DemoSkinPalette.Colours[2]);fittedArms?.ClearFit();setup.BeginParticipantSetup();Record("new_participant");Show(Page.Welcome);}break;
+                    if(i==5){skinTone=2;participantFromResearcher=false;GetComponent<SeatedAvatarDisplay>()?.SetSkinTone(DemoSkinPalette.Colours[2]);fittedArms?.ClearFit();setup.BeginParticipantSetup();Record("new_participant");Show(Page.Welcome);}break;
                 case Page.Settings:
                     if(i==0){body.BeginParticipant(0);BeginAlignment();}
                     if(i==1){setup.SetMovement(MovementCondition.Normal,true);Show(Page.Table);}
@@ -477,7 +515,7 @@ namespace QuestResearch.Embodiment
             recorder?.Event(kind);
             if(setup==null)return;
             var p=setup.Parameters;
-            try{events?.WriteLine(JsonUtility.ToJson(new PilotEvent{kind=kind,participant=recorder==null?"":recorder.Participant,session=recorder==null?"":recorder.Session,stage=page.ToString(),skinTone=DemoSkinPalette.Names[skinTone],activitySeconds=activity.Elapsed,promptIndex=activity.PromptIndex,utc=DateTime.UtcNow.ToString("O"),version=Application.version,affectedSide="Not collected in guided demo",movement=p.movementCondition.ToString(),monotonicSeconds=Time.realtimeSinceStartupAsDouble,tableHeight=p.tableHeight,tableNearEdge=p.tableNearEdge,standingHeight=0,tableConfirmed=p.tableAlignmentConfirmed,tableRest=p.tableContactEnabled}));}
+            try{events?.WriteLine(JsonUtility.ToJson(new PilotEvent{kind=kind,participant=recorder==null?"":recorder.Participant,session=recorder==null?"":recorder.Session,stage=page.ToString(),skinTone=DemoSkinPalette.Names[skinTone],activitySeconds=activity.Elapsed,promptIndex=activity.PromptIndex,utc=DateTime.UtcNow.ToString("O"),version=Application.version,affectedSide=AffectedArmPrompt?(HandProfile==ParticipantHands.RightOnly?"Left":HandProfile==ParticipantHands.LeftOnly?"Right":"None"):"Not collected in guided demo",movement=p.movementCondition.ToString(),monotonicSeconds=Time.realtimeSinceStartupAsDouble,tableHeight=p.tableHeight,tableNearEdge=p.tableNearEdge,standingHeight=0,tableConfirmed=p.tableAlignmentConfirmed,tableRest=p.tableContactEnabled}));}
             catch(Exception ex) when(ex is IOException||ex is UnauthorizedAccessException){notice="Demo event log failed";Debug.LogWarning("[Pilot] "+ex.Message);events=null;}
         }
         void OnApplicationPause(bool paused){if(paused){Record("app_paused");recorder?.End("app_paused");alignAt=-1;page=Page.Welcome;placed=false;wasFocused=false;if(panel!=null)panel.gameObject.SetActive(false);}}

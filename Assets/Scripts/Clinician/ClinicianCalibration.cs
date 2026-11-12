@@ -13,6 +13,7 @@ namespace QuestResearch.Clinician
     {
         public int schema=1;
         public string revision,createdUtc,trackerSerial,clinicianHand;
+        public string kind="full",mountRevision;// "participant-alignment" reuses the strap mount of calibration mountRevision
         public float yawDegrees;public Vector3 translation;
         public Vector3 mountPosition;public Quaternion mountRotation=Quaternion.identity;
         public int samples;public float residualRmsMetres,orientationSpreadDegrees,positionSpreadMetres,mountRotationSpreadDegrees;

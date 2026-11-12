@@ -108,7 +108,7 @@ namespace QuestResearch.ClinicianTracker
             }
             catch(Exception e){return "adb reverse failed: "+e.Message;}
         }
-        static string FindAdb()
+        public static string FindAdb()
         {
             const string hub=@"C:\Program Files\Unity\Hub\Editor";const string tail=@"Editor\Data\PlaybackEngines\AndroidPlayer\SDK\platform-tools\adb.exe";
             var preferred=Path.Combine(hub,"6000.6.2f1",tail);if(File.Exists(preferred))return preferred;

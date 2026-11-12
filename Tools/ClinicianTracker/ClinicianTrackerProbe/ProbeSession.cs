@@ -21,6 +21,7 @@ namespace QuestResearch.ClinicianTracker
             Console.CancelKeyPress+=(_,e)=>{e.Cancel=true;Stop("stopped-by-user");};
         }
         public void Stop(string reason){StopReason??=reason;stop=true;}
+        public DeviceInfo DescribeTracker()=>Index==null?null:vr.Describe(Index.Value);
         static string Status(TrackerSample s)=>"connected="+s.Connected+" valid="+s.Raw.Valid+" result="+s.Result;
         void Resolve(long ticks,string why)
         {

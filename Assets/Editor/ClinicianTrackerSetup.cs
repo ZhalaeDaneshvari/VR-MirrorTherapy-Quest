@@ -54,6 +54,10 @@ public static class ClinicianTrackerSetup
         var hold=item.AddComponent<ParticipantArmTouchHold>();
         hold.Configure(remapper,origin.GetComponent<HandTrackingSource>(),origin.GetComponent<SeatedSetup>(),feature);
         feature.ConfigureHold(hold);
+        // Pilot mode: affected-arm prompt, clinician touch stage, clinician hand only in the mirror/touch stages.
+        var pilot=origin.GetComponent<PilotWalkthrough>();
+        if(pilot==null)throw new BuildFailedException("Pilot scene has no PilotWalkthrough.");
+        feature.ConfigurePilot(pilot);
         EditorSceneManager.SaveScene(scene);
         Debug.Log("[Clinician] Test scene regenerated from the pilot scene: "+ScenePath);
     }
@@ -93,7 +97,13 @@ public static class ClinicianTrackerSetup
             var pose=new Pose(new Vector3(R(.5f),1+R(.3f),R(.5f)),Q(90));var twice=MovementReflection.Reflect(MovementReflection.Reflect(pose,body),body);
             if(Vector3.Distance(twice.position,pose.position)>1e-4f||Quaternion.Angle(twice.rotation,pose.rotation)>.05f)throw new BuildFailedException("Reflection is not an involution.");
         }
-        Debug.Log("[Clinician] Conversion, calibration recovery ("+message+"), sample gate and reflection checks PASS.");
+        // Contact correction: a point inside a straight, level forearm needs lift; points above, beside or beyond it do not.
+        var top=new Vector3[21];for(int k=0;k<21;k++)top[k]=new Vector3(0,.80f,.30f+k*.0125f);
+        float inside=ClinicianTrackerFeature.Penetration(new Vector3(0,.79f,.42f),top);
+        if(Mathf.Abs(inside-.013f)>.0005f||ClinicianTrackerFeature.Penetration(new Vector3(0,.81f,.42f),top)!=0
+            ||ClinicianTrackerFeature.Penetration(new Vector3(.05f,.79f,.42f),top)!=0||ClinicianTrackerFeature.Penetration(new Vector3(0,.79f,.60f),top)!=0)
+            throw new BuildFailedException("Forearm contact correction check failed (inside lift "+inside+").");
+        Debug.Log("[Clinician] Conversion, calibration recovery ("+message+"), sample gate, reflection and contact-lift checks PASS.");
     }
 
     [MenuItem("Quest Prototype/Clinician Tracker (test)/Build Test APK")]

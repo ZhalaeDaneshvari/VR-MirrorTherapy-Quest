@@ -28,6 +28,7 @@ namespace QuestResearch.ClinicianTracker
 list  shows every SteamVR device and its identity.
 live  prints the clinician tracker pose and logs it until Ctrl+C (or --seconds).
   ClinicianTrackerProbe stream [--serial S] [--hz 250] [--out logs] [--port 47800] [--adb <adb.exe>|none] [--hand right|left]
+                               [--dashboard 47801] [--browser yes|no] [--scrcpy <scrcpy.exe>]
 
 list    shows every SteamVR device and its identity.
 live    prints the clinician tracker pose and logs it until Ctrl+C (or --seconds).
@@ -40,6 +41,13 @@ stream  sends the pose to the Quest clinician test app over USB (adb reverse) an
             [ConsoleKey.C]="calibrate",[ConsoleKey.V]="verify",[ConsoleKey.K]="marker",[ConsoleKey.X]="clear",
             [ConsoleKey.D0]="mode-off",[ConsoleKey.NumPad0]="mode-off",[ConsoleKey.D1]="mode-congruent",[ConsoleKey.NumPad1]="mode-congruent",
             [ConsoleKey.D2]="mode-reflected",[ConsoleKey.NumPad2]="mode-reflected"};
+        static readonly HashSet<string> Extra=new HashSet<string>{"calibrate-participant","trust"};
+        static bool Allowed(string c)
+        {
+            if(Keys.ContainsValue(c)||Extra.Contains(c))return true;
+            var m=System.Text.RegularExpressions.Regex.Match(c,"^participant(-confirm)?:([0-9]{1,2})$");
+            return m.Success&&int.Parse(m.Groups[2].Value,CultureInfo.InvariantCulture) is >=1 and <=20;
+        }
         static int Stream(ProbeSession session,ProbeLog log,Stopwatch clock,DeviceInfo tracker,Dictionary<string,string> options)
         {
             int port=int.Parse(options.GetValueOrDefault("port","47800"),CultureInfo.InvariantCulture);
@@ -51,6 +59,45 @@ stream  sends the pose to the Quest clinician test app over USB (adb reverse) an
             using var server=new StreamServer(port,header,clock);
             var inbox=new System.Collections.Concurrent.ConcurrentQueue<string>();server.Received+=inbox.Enqueue;
             Console.WriteLine("Listening on 127.0.0.1:"+port+". Start the clinician test app on the Quest. Keys: C V K 0 1 2 X A Q.");
+            // Researcher dashboard (browser, this PC only): status snapshot, commands, live headset view.
+            var gate=new object();var messages=new List<(string t,string text)>();string questJson=null;long questTicks=0;
+            string pcTracker="";bool pcValid=false;int battery=-1;double lastBattery=-100;
+            var dashQueue=new System.Collections.Concurrent.ConcurrentQueue<string>();Process viewer=null;
+            void Note(string text){lock(gate){messages.Add((DateTime.Now.ToString("HH:mm:ss"),text));if(messages.Count>80)messages.RemoveAt(0);}}
+            string StatusJson()
+            {
+                lock(gate)
+                {
+                    System.Text.Json.JsonElement? quest=null;
+                    if(questJson!=null)try{quest=System.Text.Json.JsonDocument.Parse(questJson).RootElement.Clone();}catch(System.Text.Json.JsonException){}
+                    return System.Text.Json.JsonSerializer.Serialize(new{pc=new{tracker=pcTracker,valid=pcValid,battery,serial=tracker.Serial,sent=server.Sent,dropped=server.Dropped},
+                        headsetConnected=server.ClientConnected,questAgeMs=questJson==null?-1:(clock.ElapsedTicks-questTicks)*1000.0/Stopwatch.Frequency,quest,
+                        messages=messages.ConvertAll(m=>new{m.t,m.text})});
+                }
+            }
+            string DashCommand(string c)
+            {
+                c=c.Trim().ToLowerInvariant();if(!Allowed(c))return "Unknown command: "+c;
+                if(!server.ClientConnected)return "Headset app not connected; nothing sent.";
+                dashQueue.Enqueue(c);return "Sent to headset: "+c;
+            }
+            string OpenView()
+            {
+                string exe=options.GetValueOrDefault("scrcpy",System.IO.Path.GetFullPath(System.IO.Path.Combine(AppContext.BaseDirectory,"..","tools","scrcpy","scrcpy.exe")));
+                if(!System.IO.File.Exists(exe))return "Headset view tool not found at "+exe;
+                lock(gate)
+                {
+                    if(viewer!=null&&!viewer.HasExited)return "Headset view is already open.";
+                    var info=new ProcessStartInfo(exe,"--select-usb --no-control --no-audio --max-size=1920 --max-fps=30 --window-title=\"Participant view (headset)\""){UseShellExecute=false};
+                    string adbPath=StreamServer.FindAdb();if(adbPath!=null)info.Environment["ADB"]=adbPath;// same adb as the stream: no server restarts
+                    try{viewer=Process.Start(info);}catch(Exception e){return "Could not start the headset view: "+e.Message;}
+                }
+                Note("Headset view opened (read-only, not recorded).");return "Headset view opening in a separate window.";
+            }
+            int dashPort=int.Parse(options.GetValueOrDefault("dashboard","47801"),CultureInfo.InvariantCulture);
+            using var dashboard=new Dashboard(dashPort,System.IO.Path.Combine(AppContext.BaseDirectory,"dashboard.html"),StatusJson,DashCommand,OpenView);
+            string url="http://localhost:"+dashPort+"/";Console.WriteLine("Researcher dashboard: "+url);log.Event(clock.ElapsedTicks,"dashboard",new{url});
+            if(options.GetValueOrDefault("browser","yes")!="no")try{Process.Start(new ProcessStartInfo(url){UseShellExecute=true});}catch(Exception){}
             double lastPrint=0,lastKeys=0,lastFile=0;bool keys=!Console.IsInputRedirected;
             double seconds=double.Parse(options.GetValueOrDefault("seconds","0"),CultureInfo.InvariantCulture);
             // Commands can also be appended as lines to a file (one per line, e.g. "calibrate"), so a helper
@@ -81,18 +128,23 @@ stream  sends the pose to the Quest clinician test app over USB (adb reverse) an
                             foreach(var raw in text.Split('\n'))
                             {
                                 string c=raw.Trim().ToLowerInvariant();if(c.Length==0)continue;
-                                if(new HashSet<string>(Keys.Values).Contains(c))Send(now,c,"file");
+                                if(Allowed(c))Send(now,c,"file");
                                 else{Console.WriteLine();Console.WriteLine("Ignored unknown command in file: "+c);}
                             }
                         }
                     }
                     catch(System.IO.IOException){}
                 }
+                while(dashQueue.TryDequeue(out var dc))Send(now,dc,"dashboard");
                 while(inbox.TryDequeue(out var line))
                 {
                     if(line.StartsWith("S,"))continue;// latest status is shown on the status line
-                    log.Event(now,"quest",new{line});Console.WriteLine();Console.WriteLine("[Quest] "+(line.StartsWith("L,")?line.Substring(2):line));
+                    if(line.StartsWith("J,")){lock(gate){questJson=line.Substring(2);questTicks=now;}continue;}// dashboard snapshot; the headset logs its own state
+                    string text=line.StartsWith("L,")?line.Substring(2):line;Note(text);
+                    log.Event(now,"quest",new{line});Console.WriteLine();Console.WriteLine("[Quest] "+text);
                 }
+                if(t-lastBattery>=10){lastBattery=t;var info=session.DescribeTracker();float? b=info?.BatteryPercent;lock(gate)battery=b==null?-1:(int)Math.Round(b.Value);}
+                lock(gate){pcTracker=s==null?"missing":s.Result.ToString();pcValid=s!=null&&s.Raw.Valid&&s.Result==Valve.VR.ETrackingResult.Running_OK;}
                 if(keys&&t-lastKeys>=0.05)
                 {
                     lastKeys=t;

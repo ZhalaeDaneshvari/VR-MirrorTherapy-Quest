@@ -41,6 +41,14 @@ namespace QuestResearch.Clinician
         public Vector3 PalmInSpace{get;private set;}
         [SerializeField] ParticipantArmTouchHold hold;
         public void ConfigureHold(ParticipantArmTouchHold h){hold=h;}
+        // Pilot mode (clinician test build): the walkthrough asks for the affected arm, the clinician hand is shown only in
+        // the mirror and touch stages, and the head-locked text is used only to instruct the participant while calibrating.
+        [SerializeField] PilotWalkthrough pilot;
+        public void ConfigurePilot(PilotWalkthrough p){pilot=p;}
+        bool participantCalibration;int calibrationSide=1;float contactLift;
+        SkinnedMeshRenderer[][] meshRenderers=new SkinnedMeshRenderer[2][];
+        bool InTouchStage=>pilot==null||(pilot.CurrentPage==PilotWalkthrough.Page.Running&&pilot.MirrorActivity)||pilot.CurrentPage==PilotWalkthrough.Page.FutureTouch;
+        int UnaffectedSide=>pilot==null?ClinicianSide:pilot.Profile==ParticipantHands.RightOnly?1:pilot.Profile==ParticipantHands.LeftOnly?0:ClinicianSide;
         public void RecordExternal(string kind,string message){Record(kind,message);link.Send("L,"+message);}
         public string Status{get;private set;}="Clinician hand off";
         string alignmentNote="Not calibrated: press C on the PC.";
@@ -77,8 +85,9 @@ namespace QuestResearch.Clinician
                 var joints=mesh.Joints;var wrist=joints[XRHandJointID.Wrist.ToIndex()];var inverse=Quaternion.Inverse(wrist.rotation);
                 templates[side]=new Pose[joints.Length];
                 for(int i=0;i<joints.Length;i++)templates[side][i]=new Pose(inverse*(joints[i].position-wrist.position),inverse*joints[i].rotation);
-                meshes[side]=mesh;mesh.Apply(hidden,trackingSpace,false);
+                meshes[side]=mesh;meshRenderers[side]=mesh.GetComponentsInChildren<SkinnedMeshRenderer>(true);mesh.Apply(hidden,trackingSpace,false);
             }
+            if(pilot!=null){pilot.AffectedArmPrompt=true;pilot.ClinicianTouchStage=true;}
             sleeve=Primitive(PrimitiveType.Cylinder,"Clinician sleeve",cloth,new Vector3(.06f,.07f,.06f));
             marker=Primitive(PrimitiveType.Sphere,"Clinician tracker alignment marker",markerMaterial,Vector3.one*.02f);
             var stick=Primitive(PrimitiveType.Cube,"Marker forward (tracker -Z in OpenVR)",markerMaterial,new Vector3(.004f,.004f,.06f));
@@ -110,8 +119,14 @@ namespace QuestResearch.Clinician
                     Reply("Tracker "+link.Serial+" streaming; clinician hand: "+link.ClinicianHand+".");
                     if(calibration!=null&&calibration.trackerSerial!=link.Serial)Invalidate("A different tracker ("+link.Serial+") is connected; recalibrate (C).");
                     Record("tracker_header","serial "+link.Serial+", hand "+link.ClinicianHand);break;
-                case "calibrate":BeginCalibration();break;
+                case "calibrate":BeginCalibration(false);break;
+                case "calibrate-participant":BeginCalibration(true);break;
                 case "verify":Verify();break;
+                case "trust":
+                    // Researcher override after a tracker dropout, when no hand measurement is possible. Logged as unmeasured.
+                    if(Alignment!=ClinicianAlignmentState.Unverified||calibration==null){Reply("Nothing to accept: "+alignmentNote);break;}
+                    Alignment=ClinicianAlignmentState.Verified;lastObserved=Now;alignmentNote="Alignment accepted by researcher without a measurement.";
+                    RecordCalibration("alignment_accepted_without_measurement",alignmentNote);Reply(alignmentNote);break;
                 case "marker":markerOn=!markerOn;Reply("Alignment marker "+(markerOn?"on":"off")+".");break;
                 case "clear":
                     calibration=null;Alignment=ClinicianAlignmentState.None;alignmentNote="Calibration cleared: press C.";
@@ -119,7 +134,14 @@ namespace QuestResearch.Clinician
                 case "mode-off":SetMode(ClinicianMode.Off);break;
                 case "mode-congruent":SetMode(ClinicianMode.Congruent);break;
                 case "mode-reflected":SetMode(ClinicianMode.Reflected);break;
-                default:Reply("Unknown command: "+command);break;
+                default:
+                    if(command.StartsWith("participant:")||command.StartsWith("participant-confirm:"))
+                    {
+                        bool confirm=command.StartsWith("participant-confirm:");
+                        if(pilot==null||!int.TryParse(command.Substring(command.IndexOf(':')+1),out int n)){Reply("Participant command not available.");break;}
+                        pilot.ResearcherSetParticipant(n,confirm,out string message);Reply(message);break;
+                    }
+                    Reply("Unknown command: "+command);break;
             }
         }
         void SetMode(ClinicianMode mode)
@@ -128,19 +150,41 @@ namespace QuestResearch.Clinician
             Reply("Mode "+mode+(mode!=ClinicianMode.Off&&Alignment!=ClinicianAlignmentState.Verified?" (hidden until alignment is confirmed)":"")+".");
         }
         void Reply(string message){link.Send("L,"+message);Record("researcher_message",message);}
-        void BeginCalibration()
+        // Full calibration: the researcher wears the strapped tracker and the headset; solves room alignment AND the strap
+        // (tracker-to-wrist) mount. Participant calibration: the participant holds the tracker in their tracked unaffected
+        // hand during setup; only the room alignment is kept and the stored strap mount is reused.
+        string SideName(int side)=>side==0?"left":"right";
+        void BeginCalibration(bool participant)
         {
+            if(participant&&(calibration==null||calibration.trackerSerial!=link.Serial))
+            {Reply("Participant calibration needs a stored strap calibration for tracker "+link.Serial+": run the full calibration (researcher wearing the strapped tracker) first.");return;}
+            participantCalibration=participant;calibrationSide=participant?UnaffectedSide:ClinicianSide;
             samples.Clear();calibrationStart=Now;firstSampleAt=-1;lastSampleAt=-1;usableSeconds=0;lastCalibrationTicks=0;Alignment=ClinicianAlignmentState.Calibrating;
-            alignmentNote="Calibrating: tracker strapped on your "+link.ClinicianHand+" hand as the clinician will wear it. Move it slowly; turn and tilt.";
+            alignmentNote=participant
+                ?"Calibrating with the participant: they hold the tracker in their "+SideName(calibrationSide)+" hand and move it slowly; turn and tilt."
+                :"Calibrating: tracker strapped on your "+link.ClinicianHand+" hand as the clinician will wear it. Move it slowly; turn and tilt.";
             Reply(alignmentNote);
         }
         void FinishCalibration()
         {
             if(ClinicianCalibrationSolver.TrySolve(samples,link.Serial,link.ClinicianHand,out var result,out var message))
             {
-                calibration=result;Alignment=ClinicianAlignmentState.Unverified;
-                alignmentNote="Calibrated: "+message+". Check the pink marker sits on the tracker, then press V.";
-                Save();RecordCalibration("calibration_accepted",message);
+                if(participantCalibration)
+                {
+                    // The solved offset is the participant's grip, not the clinician's strap: keep the stored strap mount.
+                    result.mountPosition=calibration.mountPosition;result.mountRotation=calibration.mountRotation;
+                    result.mountRevision=calibration.mountRevision??calibration.revision;result.kind="participant-alignment";
+                    calibration=result;Alignment=ClinicianAlignmentState.Verified;lastObserved=Now;
+                    alignmentNote="Aligned during participant setup: "+message+" (strap mount from "+result.mountRevision+").";
+                    Save();RecordCalibration("participant_alignment_accepted",message);
+                }
+                else
+                {
+                    result.kind="full";result.mountRevision=result.revision;
+                    calibration=result;Alignment=ClinicianAlignmentState.Unverified;
+                    alignmentNote="Calibrated: "+message+". Check the pink marker sits on the tracker, then press V.";
+                    Save();RecordCalibration("calibration_accepted",message);
+                }
             }
             else{Alignment=calibration!=null?ClinicianAlignmentState.Unverified:ClinicianAlignmentState.None;alignmentNote=message;RecordCalibration("calibration_rejected",message);}
             Reply(alignmentNote);
@@ -261,12 +305,23 @@ namespace QuestResearch.Clinician
                 }
                 shown.SourceHand=(PhysicalHand)ClinicianSide;shown.Reflected=reflected;
                 meshes[side].Apply(shown,trackingSpace,headTracked);meshes[1-side].Apply(hidden,trackingSpace,false);
-                PlaceSleeve();
+                // Brushing, not entering: lift the rigid clinician hand so its skin rests on top of a displayed forearm.
                 Proximity(out proximitySide,out progress,out proximity);
+                contactLift=proximity<LiftSearch?ContactLift(meshRenderers[side]):0;
+                if(contactLift>0)
+                {
+                    var up=Quaternion.Inverse(trackingSpace.rotation)*Vector3.up*contactLift;
+                    for(int i=0;i<shown.Joints.Length;i++)shown.Joints[i].position+=up;
+                    meshes[side].Apply(shown,trackingSpace,headTracked);
+                    Proximity(out proximitySide,out progress,out proximity);
+                }
+                PlaceSleeve();
                 HandShown=true;PalmInSpace=shown.Joints[XRHandJointID.Palm.ToIndex()].position;
             }
-            else{HandShown=false;meshes[0].Apply(hidden,trackingSpace,false);meshes[1].Apply(hidden,trackingSpace,false);sleeve.gameObject.SetActive(false);}
-            bool showMarker=tracker.HasValue&&(markerOn||Alignment==ClinicianAlignmentState.Unverified);
+            else{HandShown=false;contactLift=0;meshes[0].Apply(hidden,trackingSpace,false);meshes[1].Apply(hidden,trackingSpace,false);sleeve.gameObject.SetActive(false);}
+
+            // In pilot mode the participant never sees the marker unless the researcher asks for it.
+            bool showMarker=tracker.HasValue&&(markerOn||(pilot==null&&Alignment==ClinicianAlignmentState.Unverified));
             marker.gameObject.SetActive(showMarker);
             if(showMarker)marker.SetPositionAndRotation(trackingSpace.TransformPoint(tracker.Value.position),trackingSpace.rotation*tracker.Value.rotation);
             if(now>=nextStatus)
@@ -276,13 +331,17 @@ namespace QuestResearch.Clinician
                     :"Clinician hidden: "+reason)+" | "+Alignment+(link.Connected?F(" | link {0:0} ms old, RTT {1:0.0} ms",age*1000,link.RoundTripMs):" | link down")
                     +(hold!=null&&hold.Held(0)?" | HOLDING left arm (occluded)":"")+(hold!=null&&hold.Held(1)?" | HOLDING right arm (occluded)":"");
                 link.Send("S,"+Status);
-                if(label!=null)label.text=Status.Replace(" | ","\n")+(Alignment==ClinicianAlignmentState.Verified?"":"\n"+alignmentNote);
+                SendStatus(reason,ok,age,headTracked,present,bodyAligned,proximitySide,progress,proximity);
+                if(label!=null)
+                    label.text=pilot==null?Status.Replace(" | ","\n")+(Alignment==ClinicianAlignmentState.Verified?"":"\n"+alignmentNote)
+                        :Alignment==ClinicianAlignmentState.Calibrating?ParticipantCalibrationText(ok):"";
             }
             if(writer!=null)Sample(frame,age,ok,tracker,wrist,reason,reflected,side,headTracked,present,bodyAligned,proximitySide,progress,proximity);
         }
         string HiddenReason(bool ok,double age,bool headTracked,bool present,bool bodyAligned)
         {
             if(Mode==ClinicianMode.Off)return "mode off";
+            if(!InTouchStage)return "waiting for the mirror experience";
             if(!link.Connected)return "no link to PC";
             if(!ok)return double.IsInfinity(age)?"no tracker frames":age>staleSeconds?F("stream stale ({0:0} ms)",age*1000):"tracker not tracking";
             if(calibration==null||Alignment!=ClinicianAlignmentState.Verified)return "alignment "+Alignment.ToString().ToLowerInvariant();
@@ -297,13 +356,14 @@ namespace QuestResearch.Clinician
             if(firstSampleAt<0&&now-calibrationStart>calibrationStartTimeout){FinishCalibration();return;}
             if(firstSampleAt>=0&&now-firstSampleAt>calibrationMaxSeconds){FinishCalibration();return;}
             double remaining=calibrationSeconds-usableSeconds;
+            string holder=participantCalibration?"participant's "+SideName(calibrationSide)+" hand holding the tracker":"your "+link.ClinicianHand+" hand (tracker strapped on)";
             alignmentNote=firstSampleAt<0
-                ?F("Calibration: put the headset on and hold your {0} hand (tracker strapped on) in view ({1:0} s left to start).",link.ClinicianHand,calibrationStartTimeout-(now-calibrationStart))
-                :F("Calibrating {0:0} s left: move your {1} hand (tracker strapped on) slowly around a shoebox-sized space; turn and tilt it. {2} samples{3}",
-                    Math.Max(0,remaining),link.ClinicianHand,samples.Count,ok?"":" (tracker lost: point it at the room)");
+                ?F("Calibration: waiting for the {0} to be in view ({1:0} s left to start).",holder,calibrationStartTimeout-(now-calibrationStart))
+                :F("Calibrating {0:0} s left: {1} moving slowly around a shoebox-sized space, turning and tilting. {2} samples{3}",
+                    Math.Max(0,remaining),holder,samples.Count,ok?"":" (tracker lost: point it at the room)");
             if(remaining<=0){FinishCalibration();return;}
             if(!ok)return;
-            var h=ClinicianSide==0?hands.Left:hands.Right;int w=XRHandJointID.Wrist.ToIndex();
+            var h=calibrationSide==0?hands.Left:hands.Right;int w=XRHandJointID.Wrist.ToIndex();
             if(h.Availability!=HandAvailability.Available||!h.JointValid[w]||Time.realtimeSinceStartupAsDouble-h.ReceivedAt>.05)return;
             // Skip fast motion: hand tracking and the USB stream have different latencies.
             if(lastCalibrationTicks!=0)
@@ -332,8 +392,73 @@ namespace QuestResearch.Clinician
         {
             side=-1;progress=0;distance=float.PositiveInfinity;if(avatar==null)return;
             var palm=trackingSpace.TransformPoint(shown.Joints[XRHandJointID.Palm.ToIndex()].position);
-            for(int s=0;s<2;s++)for(int k=0;k<=20;k++)
-                if(avatar.TryTouchPoint(s,k/20f,out var point)){float d=Vector3.Distance(point,palm);if(d<distance){distance=d;side=s;progress=k/20f;}}
+            for(int s=0;s<2;s++)
+            {
+                topValid[s]=true;
+                for(int k=0;k<=TopSamples;k++)
+                {
+                    if(!avatar.TryTouchPoint(s,k/(float)TopSamples,out topLine[s][k])){topValid[s]=false;break;}
+                    float d=Vector3.Distance(topLine[s][k],palm);if(d<distance){distance=d;side=s;progress=k/(float)TopSamples;}
+                }
+            }
+        }
+        // Display correction only: the participant forearm is approximated by its displayed top line (elbow to wrist)
+        // with a rounded cross-section; returns how far the clinician hand must rise so no skin vertex is inside it.
+        const int TopSamples=20;const float LiftSearch=.15f,ForearmRadius=.035f,ContactClearance=.003f;
+        readonly Vector3[][] topLine={new Vector3[TopSamples+1],new Vector3[TopSamples+1]};readonly bool[] topValid=new bool[2];
+        readonly List<Vector3> bakedVertices=new List<Vector3>();Mesh bakedMesh;
+        float ContactLift(SkinnedMeshRenderer[] renderers)
+        {
+            if(!topValid[0]&&!topValid[1])return 0;
+            if(bakedMesh==null)bakedMesh=Owned(new Mesh{name="Clinician contact query"});
+            float lift=0;
+            foreach(var r in renderers)
+            {
+                r.BakeMesh(bakedMesh);bakedMesh.GetVertices(bakedVertices);var toWorld=r.transform.localToWorldMatrix;
+                foreach(var local in bakedVertices){var v=toWorld.MultiplyPoint3x4(local);for(int s=0;s<2;s++)if(topValid[s])lift=Mathf.Max(lift,Penetration(v,topLine[s]));}
+            }
+            return lift;
+        }
+        public static float Penetration(Vector3 v,Vector3[] line)
+        {
+            Vector3 a=line[0],b=line[line.Length-1];Vector3 axis=new Vector3(b.x-a.x,0,b.z-a.z);float length=axis.magnitude;if(length<.05f)return 0;axis/=length;
+            Vector3 d=new Vector3(v.x-a.x,0,v.z-a.z);float along=Vector3.Dot(d,axis);
+            if(along<0||along>length)return 0;// beyond the elbow or wrist ends of the displayed forearm
+            float lateral=(d-axis*along).magnitude;if(lateral>=ForearmRadius)return 0;
+            float t=along/length*(line.Length-1);int k=Mathf.Min((int)t,line.Length-2);float top=Mathf.Lerp(line[k].y,line[k+1].y,t-k);
+            if(v.y<top-2*ForearmRadius)return 0;// under the arm, not inside it
+            float surface=top-(ForearmRadius-Mathf.Sqrt(ForearmRadius*ForearmRadius-lateral*lateral));
+            return Mathf.Max(0,surface+ContactClearance-v.y);
+        }
+        string ParticipantCalibrationText(bool ok)
+        {
+            if(!participantCalibration)return "Calibration in progress (researcher).";
+            string hand=SideName(calibrationSide).ToUpperInvariant();
+            return firstSampleAt<0?"Please hold the round tracker in your "+hand+" hand\nand raise it in front of you."
+                :"Slowly move the tracker around in front of you,\nturning and tilting your "+hand.ToLowerInvariant()+" hand."+(ok?"":"\n(Point the tracker towards the room.)");
+        }
+        // Researcher dashboard feed (PC): one JSON line, four times a second.
+        [Serializable] sealed class QuestStatus
+        {
+            public string alignment,note,mode,hidden,stage,participant,profile,affected,calibrationKind,calibrationUtc,clinicianHand,calibrationHand;
+            public bool shown,trackerOk,headTracked,userPresent,bodyAligned,mirror,participantConfirmed,holdLeft,holdRight,mountStored,marker,calibrating,touchStage;
+            public int selectedParticipant,samples;public float residualCm,ageMs,rttMs,liftCm,palmCm,progress,calibrationSecondsLeft;
+        }
+        readonly QuestStatus status=new QuestStatus();
+        void SendStatus(string reason,bool ok,double age,bool headTracked,bool present,bool bodyAligned,int proximitySide,float progress,float proximity)
+        {
+            var s=status;s.alignment=Alignment.ToString();s.note=alignmentNote;s.mode=Mode.ToString();s.hidden=reason??"";s.shown=reason==null&&HandShown;
+            s.trackerOk=ok;s.ageMs=double.IsInfinity(age)?-1:(float)(age*1000);s.rttMs=(float)link.RoundTripMs;s.headTracked=headTracked;s.userPresent=present;s.bodyAligned=bodyAligned;
+            s.stage=pilot==null?"":pilot.CurrentPage.ToString();s.mirror=pilot!=null&&pilot.MirrorActivity;s.touchStage=InTouchStage;
+            s.selectedParticipant=pilot==null?0:pilot.ParticipantNumber;s.participant=pilot==null?"":pilot.ParticipantId;s.participantConfirmed=pilot!=null&&pilot.ParticipantConfirmed;
+            s.profile=pilot==null?"":pilot.Profile.ToString();
+            s.affected=pilot==null?"":pilot.Profile==ParticipantHands.RightOnly?"left":pilot.Profile==ParticipantHands.LeftOnly?"right":"none";
+            s.holdLeft=hold!=null&&hold.Held(0);s.holdRight=hold!=null&&hold.Held(1);s.marker=markerOn;
+            s.mountStored=calibration!=null&&calibration.trackerSerial==link.Serial;s.calibrationKind=calibration?.kind??"";s.calibrationUtc=calibration?.createdUtc??"";
+            s.residualCm=calibration==null?-1:calibration.residualRmsMetres*100;s.clinicianHand=link.ClinicianHand;s.calibrationHand=SideName(calibrationSide);
+            s.calibrating=Alignment==ClinicianAlignmentState.Calibrating;s.samples=samples.Count;s.calibrationSecondsLeft=s.calibrating?(float)Math.Max(0,calibrationSeconds-usableSeconds):0;
+            s.liftCm=contactLift*100;s.palmCm=proximitySide>=0?proximity*100:-1;s.progress=proximitySide>=0?progress:-1;
+            link.Send("J,"+JsonUtility.ToJson(s));
         }
 
         // ---------- persistence and recording (separate from participant MovementData) ----------
@@ -380,6 +505,8 @@ namespace QuestResearch.Clinician
             public bool headTracked,userPresent,bodyAligned;
             public string proximitySide;public float proximityProgress,proximityMetres;
             public bool heldLeft,heldRight;// participant displayed arm shown from a held pose (not tracked) this frame
+            public float contactLiftMetres;// display-only lift keeping the clinician skin on top of the displayed forearm
+            public string pilotStage;public bool touchStage;
         }
         [Serializable] sealed class EventRecord{public string type="event",kind,message,utc,alignment,mode;public long questTicks;}
         [Serializable] sealed class CalibrationRecord{public string type="calibration",kind,message,utc;public long questTicks;public ClinicianCalibration calibration;}
@@ -419,6 +546,7 @@ namespace QuestResearch.Clinician
             r.headTracked=headTracked;r.userPresent=present;r.bodyAligned=bodyAligned;
             r.proximitySide=proximitySide>=0?((PhysicalHand)proximitySide).ToString():"";r.proximityProgress=progress;r.proximityMetres=proximitySide>=0?proximity:-1;
             r.heldLeft=hold!=null&&hold.Held(0);r.heldRight=hold!=null&&hold.Held(1);
+            r.contactLiftMetres=contactLift;r.pilotStage=pilot==null?"":pilot.CurrentPage.ToString();r.touchStage=InTouchStage;
             Append(JsonUtility.ToJson(r));
         }
     }
