@@ -36,6 +36,12 @@ namespace QuestResearch.Clinician
         public const string FingerPose="Fixed: hand model bind pose (open hand). Not tracked.";
         public ClinicianMode Mode{get;private set;}=ClinicianMode.Off;
         public ClinicianAlignmentState Alignment{get;private set;}=ClinicianAlignmentState.None;
+        // Displayed clinician palm (tracking space) from the latest rendered frame, for the test-only arm hold.
+        public bool HandShown{get;private set;}
+        public Vector3 PalmInSpace{get;private set;}
+        [SerializeField] ParticipantArmTouchHold hold;
+        public void ConfigureHold(ParticipantArmTouchHold h){hold=h;}
+        public void RecordExternal(string kind,string message){Record(kind,message);link.Send("L,"+message);}
         public string Status{get;private set;}="Clinician hand off";
         string alignmentNote="Not calibrated: press C on the PC.";
         ClinicianCalibration calibration;
@@ -257,8 +263,9 @@ namespace QuestResearch.Clinician
                 meshes[side].Apply(shown,trackingSpace,headTracked);meshes[1-side].Apply(hidden,trackingSpace,false);
                 PlaceSleeve();
                 Proximity(out proximitySide,out progress,out proximity);
+                HandShown=true;PalmInSpace=shown.Joints[XRHandJointID.Palm.ToIndex()].position;
             }
-            else{meshes[0].Apply(hidden,trackingSpace,false);meshes[1].Apply(hidden,trackingSpace,false);sleeve.gameObject.SetActive(false);}
+            else{HandShown=false;meshes[0].Apply(hidden,trackingSpace,false);meshes[1].Apply(hidden,trackingSpace,false);sleeve.gameObject.SetActive(false);}
             bool showMarker=tracker.HasValue&&(markerOn||Alignment==ClinicianAlignmentState.Unverified);
             marker.gameObject.SetActive(showMarker);
             if(showMarker)marker.SetPositionAndRotation(trackingSpace.TransformPoint(tracker.Value.position),trackingSpace.rotation*tracker.Value.rotation);
@@ -266,7 +273,8 @@ namespace QuestResearch.Clinician
             {
                 nextStatus=now+.25;
                 Status=(reason==null?"Clinician "+Mode.ToString().ToUpperInvariant()+" shown"+(proximitySide>=0?F(" | palm over displayed {0} forearm {1:0}% elbow-wrist, {2:0.0} cm",(PhysicalHand)proximitySide,progress*100,proximity*100):"")
-                    :"Clinician hidden: "+reason)+" | "+Alignment+(link.Connected?F(" | link {0:0} ms old, RTT {1:0.0} ms",age*1000,link.RoundTripMs):" | link down");
+                    :"Clinician hidden: "+reason)+" | "+Alignment+(link.Connected?F(" | link {0:0} ms old, RTT {1:0.0} ms",age*1000,link.RoundTripMs):" | link down")
+                    +(hold!=null&&hold.Held(0)?" | HOLDING left arm (occluded)":"")+(hold!=null&&hold.Held(1)?" | HOLDING right arm (occluded)":"");
                 link.Send("S,"+Status);
                 if(label!=null)label.text=Status.Replace(" | ","\n")+(Alignment==ClinicianAlignmentState.Verified?"":"\n"+alignmentNote);
             }
@@ -359,6 +367,7 @@ namespace QuestResearch.Clinician
             public string questConvention="calibrated and displayed poses: Quest XR-origin tracking space, Unity left-handed axes, metres.";
             public string timing="questTicks/receivedTicks: Quest Stopwatch. pcTicks: PC Stopwatch at the probe read. pcSampleAgeAtReceiptMs uses the lowest-RTT clock mapping; -1 before the first sync.";
             public string scope="Clinician tracker only. Participant movement is recorded separately by the pilot recorder. Proximity values are display geometry, not contact.";
+            public string participantArmHold;
         }
         [Serializable] sealed class SampleRecord
         {
@@ -370,6 +379,7 @@ namespace QuestResearch.Clinician
             public string mode,hiddenReason,displayedSide;public bool displayed,reflected;public Vector3 displayedWristPosition;public Quaternion displayedWristRotation;
             public bool headTracked,userPresent,bodyAligned;
             public string proximitySide;public float proximityProgress,proximityMetres;
+            public bool heldLeft,heldRight;// participant displayed arm shown from a held pose (not tracked) this frame
         }
         [Serializable] sealed class EventRecord{public string type="event",kind,message,utc,alignment,mode;public long questTicks;}
         [Serializable] sealed class CalibrationRecord{public string type="calibration",kind,message,utc;public long questTicks;public ClinicianCalibration calibration;}
@@ -381,7 +391,9 @@ namespace QuestResearch.Clinician
             {
                 sessionFolder=Path.Combine(DataRoot,DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmssfff'Z'")+"-"+Guid.NewGuid().ToString("N").Substring(0,8));
                 writer=new MovementSessionWriter(sessionFolder,JsonUtility.ToJson(new Metadata{appVersion=Application.identifier+" "+Application.version,unityVersion=Application.unityVersion,
-                    device=SystemInfo.deviceModel,startUtc=DateTime.UtcNow.ToString("O"),stopwatchFrequency=Stopwatch.Frequency,staleSeconds=staleSeconds,lossGraceSeconds=lossGraceSeconds},true));
+                    device=SystemInfo.deviceModel,startUtc=DateTime.UtcNow.ToString("O"),stopwatchFrequency=Stopwatch.Frequency,staleSeconds=staleSeconds,lossGraceSeconds=lossGraceSeconds,
+                    participantArmHold=hold==null?"not present":F("Test build only: when participant hand tracking is lost while the displayed clinician palm is within {0:0} cm and the arm was resting, the last tracked displayed pose is held for at most {1:0.#} s (heldLeft/heldRight, participant_arm_hold_* events). Physical hand data is not altered; the pilot recorder's mapped/displayed records show the held pose during holds.",
+                        hold.ClinicianRadius*100,hold.MaxHoldSeconds)},true));
                 Record("recording_started",sessionFolder);
                 if(calibration!=null)RecordCalibration("calibration_in_use",alignmentNote);
             }
@@ -406,6 +418,7 @@ namespace QuestResearch.Clinician
             var dw=shown.Joints[XRHandJointID.Wrist.ToIndex()];r.displayedWristPosition=r.displayed?dw.position:Vector3.zero;r.displayedWristRotation=r.displayed?dw.rotation:Quaternion.identity;
             r.headTracked=headTracked;r.userPresent=present;r.bodyAligned=bodyAligned;
             r.proximitySide=proximitySide>=0?((PhysicalHand)proximitySide).ToString():"";r.proximityProgress=progress;r.proximityMetres=proximitySide>=0?proximity:-1;
+            r.heldLeft=hold!=null&&hold.Held(0);r.heldRight=hold!=null&&hold.Held(1);
             Append(JsonUtility.ToJson(r));
         }
     }

@@ -146,3 +146,20 @@ the app required it (all commands logged by the probe).
 - Implication: the tracker solves clinician identity and clinician-hand pose, but touch near the participant's
   hand breaks participant hand tracking. Any mitigation (holding the resting arm during touch, stroke
   technique, an additional forearm tracker) changes or adds participant-side behaviour and needs a decision.
+
+## Participant arm hold during clinician touch (test build only, added 2026-11-12)
+
+Chosen by the user after the occlusion finding above. `ParticipantArmTouchHold` exists only in the generated test
+scene; the accepted pilot scene and pilot scripts are unchanged.
+
+- **When:** the participant's hand is lost by Quest hand tracking (not merely excluded by the hand profile), the
+  same side was tracked and **resting** (wrist < 5 cm/s over 0.3 s) at most 0.5 s earlier, the movement condition
+  is unchanged, the head is tracked, and the **displayed clinician palm is within 35 cm** of that displayed wrist.
+- **What:** the last tracked displayed pose of that side (hand and the arm attached to it) keeps being shown.
+- **Ends:** as soon as the hand is tracked again, after **3 s** at most, when the clinician hand moves beyond 35 cm
+  or is hidden, if the movement condition changes, or if head tracking is lost. It is then hidden as before.
+- **Data:** physical hand data is never altered. In the test app, the pilot recorder's *mapped/displayed* records
+  show the held pose during a hold; the clinician log marks every held frame (`heldLeft`/`heldRight`) and logs
+  `participant_arm_hold_started/ended` events with the reason. The headset status line shows "HOLDING … arm".
+- These limits are provisional choices for the stroke task (participant instructed to keep the arm still), not
+  validated parameters. A held arm is an inference: it cannot show movement made while the hand is occluded.

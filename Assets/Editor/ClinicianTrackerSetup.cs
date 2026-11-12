@@ -48,6 +48,12 @@ public static class ClinicianTrackerSetup
         var feature=item.AddComponent<ClinicianTrackerFeature>();
         feature.Configure(link,origin.GetComponent<SeatedSetup>(),origin.GetComponent<HandTrackingSource>(),display,
             origin.CameraFloorOffsetObject.transform,origin.Camera.transform,left,right,AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/SeatedSkin.mat"));
+        // Test build only: brief hold of the participant's resting displayed arm while the clinician hand occludes it.
+        var remapper=origin.GetComponent<MovementRemapper>();
+        if(remapper==null)throw new BuildFailedException("Pilot scene has no MovementRemapper.");
+        var hold=item.AddComponent<ParticipantArmTouchHold>();
+        hold.Configure(remapper,origin.GetComponent<HandTrackingSource>(),origin.GetComponent<SeatedSetup>(),feature);
+        feature.ConfigureHold(hold);
         EditorSceneManager.SaveScene(scene);
         Debug.Log("[Clinician] Test scene regenerated from the pilot scene: "+ScenePath);
     }
